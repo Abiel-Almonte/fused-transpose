@@ -23,8 +23,8 @@ extern "C" {
     float* alignedA= static_cast<float*>(__builtin_assume_aligned(A, 64));
     alignas(32) float row_buffer[TILE_DIM][TILE_DIM];
     
-    uint32_t num_blocks= (m + BLOCK_DIM - 1)/BLOCK_DIM;
     uint32_t full_blocks= m/BLOCK_DIM;
+    uint32_t num_blocks= (m + BLOCK_DIM - 1)/BLOCK_DIM;
     
     //PATH 1: Full Block
     for (uint32_t bi= 0; bi < full_blocks; bi++) {
@@ -63,9 +63,10 @@ extern "C" {
     
     //Edge Blocks 
     if(num_blocks > full_blocks){
-      uint32_t partial_block_small_dim= m - full_blocks*BLOCK_DIM;
-      uint32_t full_tiles= partial_block_small_dim/TILE_DIM;
-      uint32_t partial_tile_small_dim= partial_block_small_dim%TILE_DIM;
+      uint32_t block_small_dim= m - full_blocks*BLOCK_DIM;
+
+      uint32_t tile_small_dim= block_small_dim%TILE_DIM;
+      uint32_t full_tiles= block_small_dim/TILE_DIM;
       
       //Edge Block, Full and Edge Tile
       for (uint32_t bi= 0; bi < full_blocks; bi++){
@@ -91,7 +92,7 @@ extern "C" {
           uint32_t tile_base_addr_T= block_base_addr_T + full_tiles*TILE_DIM*stride + ti*TILE_DIM;
           
           for (uint8_t i= 0; i < TILE_DIM; i++){
-            for (uint8_t j= 0; j < partial_tile_small_dim; j++){
+            for (uint8_t j= 0; j < tile_small_dim; j++){
               swap_scalar(
                 alignedA,
                 tile_base_addr,
@@ -123,7 +124,7 @@ extern "C" {
         uint32_t tile_base_addr_T= block_base_addr + full_tiles*TILE_DIM*stride+ ti*TILE_DIM;
         
         for (uint32_t i= 0; i < TILE_DIM; i++){
-          for (uint32_t j= 0; j < partial_tile_small_dim; j++){
+          for (uint32_t j= 0; j < tile_small_dim; j++){
             swap_scalar(
               alignedA,
               tile_base_addr,
@@ -136,9 +137,8 @@ extern "C" {
       
       //PATH 6: Diag Edge Block, Diag Edge Tile
       uint32_t tile_base_addr= block_base_addr + full_tiles*TILE_DIM*stride + full_tiles*TILE_DIM;
-      
-      for (uint32_t i= 0; i < partial_tile_small_dim; i++){
-        for (uint32_t j= i + 1; j < partial_tile_small_dim; j++){
+      for (uint32_t i= 0; i < tile_small_dim; i++){
+        for (uint32_t j= i + 1; j < tile_small_dim; j++){
           swap_scalar(
             alignedA,
             tile_base_addr,
