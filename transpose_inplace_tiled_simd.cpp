@@ -32,7 +32,7 @@ extern "C" {
         uint32_t block_base_addr= bi*BLOCK_DIM*stride + bj*BLOCK_DIM;
         uint32_t block_base_addr_T= bj*BLOCK_DIM*stride + bi*BLOCK_DIM;
         
-        //Off Diag Tile
+        //Off Diag Block
         for (uint32_t ti= 0; ti < TILES_PER_BLOCK_DIM; ti++) {
           for (uint32_t tj= 0; tj < TILES_PER_BLOCK_DIM; tj++) {
             swap_tile(
@@ -46,7 +46,7 @@ extern "C" {
         }
       }
       
-      //Diag Tile
+      //Diag Block
       uint32_t block_base_addr= bi*BLOCK_DIM*stride + bi*BLOCK_DIM;
       for (uint32_t ti= 0; ti < TILES_PER_BLOCK_DIM; ti++) {
         for (uint32_t tj= ti; tj < TILES_PER_BLOCK_DIM; tj++) {
