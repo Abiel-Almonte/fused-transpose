@@ -23,7 +23,7 @@ static uint32_t get_iters(const uint32_t m, const uint32_t stride) {
     std::vector<double> timings_s(BASE_ITER); //seconds
     volatile double trash= 0;
 
-    float* A= static_cast<float *>(aligned_alloc(CACHE_LINE_SIZE, get_alloc_size(m*stride)));
+    float* A= static_cast<float*>(aligned_alloc(CACHE_LINE_SIZE, get_alloc_size(m*stride)));
 
     if (!A) {
         std::cerr << "Aligned Alloc Failed" << std::endl;
@@ -32,7 +32,7 @@ static uint32_t get_iters(const uint32_t m, const uint32_t stride) {
     
     for (uint32_t i = 0; i < m; i++) {
         for (uint32_t j= 0; j < m; j++){
-            A[i*stride + j] = static_cast<float>(i*m + j);
+            A[i*stride + j]= static_cast<float>(i*m + j);
         }
     }
 
@@ -70,8 +70,8 @@ extern "C" int run_timing_benchmark(const uint32_t m) {
     const uint64_t bytes= static_cast<uint64_t>(((m * (m-1))/2)* sizeof(float) * 4); // 2 loads 2 stores
     volatile double trash= 0;
     
-    float* A_custom= static_cast<float *>(aligned_alloc(CACHE_LINE_SIZE, get_alloc_size(m*stride)));
-    float* A_mkl= static_cast<float *>(aligned_alloc(CACHE_LINE_SIZE, get_alloc_size(m*stride)));
+    float* A_custom= static_cast<float*>(aligned_alloc(CACHE_LINE_SIZE, get_alloc_size(m*stride)));
+    float* A_mkl= static_cast<float*>(aligned_alloc(CACHE_LINE_SIZE, get_alloc_size(m*stride)));
     
     if (!A_custom || !A_mkl) {
         std::cerr << "Aligned Alloc Failed" << std::endl;
