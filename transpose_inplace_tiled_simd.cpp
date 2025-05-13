@@ -12,58 +12,54 @@ constexpr uint32_t PERMUTE_LO_MASK= 0b00100000; // get first half of each
 constexpr uint32_t PERMUTE_HI_MASK= 0b00110001; // get second half of each
 
 // transpose 1x1 with indices
-#define SWAP(ii, jj) { \
-    float tmp= alignedA[tile_base_addr + ii*stride + jj]; \
-    alignedA[tile_base_addr + ii*stride + jj]= alignedA[tile_base_addr_T + jj*stride + ii]; \
-    alignedA[tile_base_addr_T + jj*stride +ii]= tmp; \
-}
+inline void swap_scalar(float* alignedA, const uint32_t tile_base_addr, const uint32_t tile_base_addr_T, const uint32_t i, const uint32_t j, const uint32_t stride);
 
 // tranpose 8x8 with registers
 inline void simd_transpose_8x8(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride);
-inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], uint32_t block_base_addr, uint32_t block_base_addr_T, uint32_t i, uint32_t j, uint32_t m);
+inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], const uint32_t block_base_addr, const uint32_t block_base_addr_T, const uint32_t ti, const uint32_t tj, const uint32_t stride);
 
 extern "C" {
   void transpose_inplace_tiled_simd(float* A, const uint32_t m, const uint32_t stride) {
     float* alignedA= static_cast<float*>(__builtin_assume_aligned(A, 64));
     alignas(32) float row_buffer[TILE_DIM][TILE_DIM];
-
+    
     uint32_t num_blocks= (m + BLOCK_DIM - 1)/BLOCK_DIM;
     uint32_t full_blocks= m/BLOCK_DIM;
-
+    
     // PATH 1: full block, full tile, off diag block
     for (uint32_t bi= 0; bi < full_blocks; bi++) {
       for (uint32_t bj= bi+1; bj < full_blocks; bj++) {
         uint32_t block_base_addr= bi*BLOCK_DIM*stride + bj*BLOCK_DIM;
         uint32_t block_base_addr_T= bj*BLOCK_DIM*stride + bi*BLOCK_DIM;
-
-        for (uint32_t i= 0; i < TILES_PER_BLOCK_DIM; i++) {
-          for (uint32_t j= 0; j < TILES_PER_BLOCK_DIM; j++) {
+        
+        for (uint32_t ti= 0; ti < TILES_PER_BLOCK_DIM; ti++) {
+          for (uint32_t tj= 0; tj < TILES_PER_BLOCK_DIM; tj++) {
             swap_tile(
               alignedA,
               row_buffer,
               block_base_addr,
               block_base_addr_T,
-              i, j, stride
+              ti, tj, stride
             );
           }
         }
       }
-
+      
       // PATH 2: full block, full tile, diag block
       uint32_t block_base_addr= bi*BLOCK_DIM*stride + bi*BLOCK_DIM;
-      for (uint32_t i= 0; i < TILES_PER_BLOCK_DIM; i++) {
-        for (uint32_t j= i; j < TILES_PER_BLOCK_DIM; j++) {
+      for (uint32_t ti= 0; ti < TILES_PER_BLOCK_DIM; ti++) {
+        for (uint32_t tj= ti; tj < TILES_PER_BLOCK_DIM; tj++) {
           swap_tile(
             alignedA,
             row_buffer,
             block_base_addr,
             block_base_addr,
-            i, j, stride
+            ti, tj, stride
           );
         }
       }
     }
-  
+    
     //process partial blocks 
     if(num_blocks > full_blocks){
       uint32_t partial_block_small_dim= m - full_blocks*BLOCK_DIM;
@@ -74,78 +70,98 @@ extern "C" {
       for (uint32_t bi= 0; bi < full_blocks; bi++){
         uint32_t block_base_addr= bi*BLOCK_DIM*stride + full_blocks*BLOCK_DIM;
         uint32_t block_base_addr_T= full_blocks*BLOCK_DIM*stride + bi*BLOCK_DIM;
-
+        
         //process full tiles
-        for (uint32_t i= 0; i < TILES_PER_BLOCK_DIM; i++){
-          for (uint32_t j= 0; j < full_tiles; j++){
+        for (uint32_t ti= 0; ti < TILES_PER_BLOCK_DIM; ti++){
+          for (uint32_t tj= 0; tj < full_tiles; tj++){
             swap_tile(
               alignedA,
               row_buffer,
               block_base_addr,
               block_base_addr_T,
-              i, j, stride
+              ti, tj, stride
             );
           }
         }
         
         //process right edge partial tiles
-        for (uint32_t i= 0; i < TILES_PER_BLOCK_DIM; i++){
-          uint32_t tile_base_addr= block_base_addr + i*TILE_DIM*stride + full_tiles*TILE_DIM;
-          uint32_t tile_base_addr_T= block_base_addr_T + full_tiles*TILE_DIM*stride + i*TILE_DIM;
+        for (uint32_t ti= 0; ti < TILES_PER_BLOCK_DIM; ti++){
+          uint32_t tile_base_addr= block_base_addr + ti*TILE_DIM*stride + full_tiles*TILE_DIM;
+          uint32_t tile_base_addr_T= block_base_addr_T + full_tiles*TILE_DIM*stride + ti*TILE_DIM;
           
-          for (uint8_t ii= 0; ii < TILE_DIM; ii++){
-            for (uint8_t jj= 0; jj < partial_tile_small_dim; jj++){
-              SWAP(ii, jj);
+          for (uint8_t i= 0; i < TILE_DIM; i++){
+            for (uint8_t j= 0; j < partial_tile_small_dim; j++){
+              swap_scalar(
+                alignedA,
+                tile_base_addr,
+                tile_base_addr_T,
+                i, j, stride
+              );
             }
           } 
         }
       }
-
+      
       //PATH 4: partial block, full tiles, diag block
       uint32_t block_base_addr= full_blocks*BLOCK_DIM*stride + full_blocks*BLOCK_DIM;
-      for(uint32_t i= 0; i < full_tiles; i++){ // can be cut off by bottom edge small dim
-        for(uint32_t j= i; j < full_tiles; j++){
+      for(uint32_t ti= 0; ti < full_tiles; ti++){ // can be cut off by bottom edge small dim
+        for(uint32_t tj= ti; tj < full_tiles; tj++){
           swap_tile(
             alignedA,
             row_buffer,
             block_base_addr,
             block_base_addr,
-            i, j, stride
+            ti, tj, stride
           );
         }
       }
-
+      
       //PATH 5: partial block, right edge partial tiles, diag block, off diag tile
-      for (uint32_t i= 0; i< full_tiles; i++){
-        uint32_t tile_base_addr= block_base_addr + i*TILE_DIM*stride + full_tiles*TILE_DIM;
-        uint32_t tile_base_addr_T= block_base_addr + full_tiles*TILE_DIM*stride+ i*TILE_DIM;
+      for (uint32_t ti= 0; ti< full_tiles; ti++){
+        uint32_t tile_base_addr= block_base_addr + ti*TILE_DIM*stride + full_tiles*TILE_DIM;
+        uint32_t tile_base_addr_T= block_base_addr + full_tiles*TILE_DIM*stride+ ti*TILE_DIM;
         
-        for (uint32_t ii= 0; ii < TILE_DIM; ii++){
-          for (uint32_t jj= 0; jj < partial_tile_small_dim; jj++){
-            SWAP(ii, jj);
+        for (uint32_t i= 0; i < TILE_DIM; i++){
+          for (uint32_t j= 0; j < partial_tile_small_dim; j++){
+            swap_scalar(
+              alignedA,
+              tile_base_addr,
+              tile_base_addr_T,
+              i, j, stride
+            );
           }
         }
       }
-
+      
       //PATH 6: partial block, bottom right edge tile, diag block, diag tile
       uint32_t tile_base_addr= block_base_addr + full_tiles*TILE_DIM*stride + full_tiles*TILE_DIM;
-      uint32_t tile_base_addr_T= tile_base_addr;
-
-      for (uint32_t ii= 0; ii < partial_tile_small_dim; ii++){
-        for (uint32_t jj= ii + 1; jj < partial_tile_small_dim; jj++){
-          SWAP(ii, jj);
+      
+      for (uint32_t i= 0; i < partial_tile_small_dim; i++){
+        for (uint32_t j= i + 1; j < partial_tile_small_dim; j++){
+          swap_scalar(
+            alignedA,
+            tile_base_addr,
+            tile_base_addr,
+            i, j, stride
+          );
         }
       }
     }
   }
 }
 
-inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], uint32_t block_base_addr, uint32_t block_base_addr_T, uint32_t i, uint32_t j, uint32_t stride){
-  float* tile= alignedA + block_base_addr + i*TILE_DIM*stride + j*TILE_DIM;
-  float* tile_T= alignedA + block_base_addr_T + j*TILE_DIM*stride + i*TILE_DIM;
+inline void swap_scalar(float* alignedA, const uint32_t tile_base_addr, const uint32_t tile_base_addr_T, const uint32_t i, const uint32_t j, const uint32_t stride){
+  float temp= alignedA[tile_base_addr + i*stride + j];
+  alignedA[tile_base_addr + i*stride + j]= alignedA[tile_base_addr_T + j*stride + i];
+  alignedA[tile_base_addr_T + j*stride +i]= temp; 
+}
 
-  for(uint8_t ii= 0; ii< TILE_DIM; ii++){
-    _mm256_storeu_ps(buffer[ii], _mm256_loadu_ps(tile + ii*stride));
+inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], const uint32_t block_base_addr, const uint32_t block_base_addr_T, const uint32_t ti, const uint32_t tj, const uint32_t stride){
+  float* tile= alignedA + block_base_addr + ti*TILE_DIM*stride + tj*TILE_DIM;
+  float* tile_T= alignedA + block_base_addr_T + tj*TILE_DIM*stride + ti*TILE_DIM;
+  
+  for(uint8_t i= 0; i< TILE_DIM; i++){
+    _mm256_storeu_ps(buffer[i], _mm256_loadu_ps(tile + i*stride));
   }
 
   simd_transpose_8x8(tile_T, stride, tile, stride);
