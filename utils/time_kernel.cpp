@@ -26,8 +26,7 @@ static uint32_t get_iters(const uint32_t m, const uint32_t stride) {
     float* A= static_cast<float*>(aligned_alloc(CACHE_LINE_SIZE, get_alloc_size(m*stride)));
 
     if (!A) {
-        std::cerr << "Aligned Alloc Failed" << std::endl;
-        std::exit(EXIT_FAILURE);
+        throw std::runtime_error("Aligned Alloc Failed");
     }
     
     for (uint32_t i = 0; i < m; i++) {
@@ -74,8 +73,7 @@ extern "C" int run_timing_benchmark(const uint32_t m) {
     float* A_mkl= static_cast<float*>(aligned_alloc(CACHE_LINE_SIZE, get_alloc_size(m*stride)));
     
     if (!A_custom || !A_mkl) {
-        std::cerr << "Aligned Alloc Failed" << std::endl;
-        exit(EXIT_FAILURE);
+        throw std::runtime_error("Aligned Alloc Failed");
     }
     
     for (uint32_t i= 0; i < m; i++) {
@@ -169,14 +167,14 @@ extern "C" int run_timing_benchmark(const uint32_t m) {
     double mkl_p50_bandwidth= static_cast<double>(bytes/(mkl_p50_latency_ns));
     double mkl_p90_bandwidth= static_cast<double>(bytes/(mkl_p90_latency_ns));
 
-    std::cout << "implemenation" << "\t" << "size"  << "\t" << "p10_latency_ns" << "\t" << "p50_latency_ns" << "\t" <<"p90_latency_ns";
-    std::cout <<  "\t" << "p10_bandwidth" << "\t" << "p50_bandwidth" << "\t" << "p90_bandwidth"  << std::endl;
+    std::cout << "implemenation" << "\t" << "size"  << "\t" << "p10_latency_ns" << "\t" << "p50_latency_ns" << "\t" <<"p90_latency_ns"
+              <<  "\t" << "p10_bandwidth" << "\t" << "p50_bandwidth" << "\t" << "p90_bandwidth"  << std::endl;
 
-    std::cout << "custom" << "\t" << m << "\t" << custom_p10_latency_ns << "\t" << custom_p50_latency_ns << "\t" << custom_p90_latency_ns;
-    std::cout << "\t" << custom_p10_bandwidth << "\t" << custom_p50_bandwidth << "\t" << custom_p90_bandwidth << std::endl;
+    std::cout << "custom" << "\t" << m << "\t" << custom_p10_latency_ns << "\t" << custom_p50_latency_ns << "\t" << custom_p90_latency_ns
+              << "\t" << custom_p10_bandwidth << "\t" << custom_p50_bandwidth << "\t" << custom_p90_bandwidth << std::endl;
 
-    std::cout << "mkl" << "\t" << m << "\t" << mkl_p10_latency_ns << "\t" << mkl_p50_latency_ns << "\t" << mkl_p90_latency_ns;
-    std::cout << "\t" << mkl_p10_bandwidth << "\t" << mkl_p50_bandwidth << "\t" << mkl_p90_bandwidth << std::endl;
+    std::cout << "mkl" << "\t" << m << "\t" << mkl_p10_latency_ns << "\t" << mkl_p50_latency_ns << "\t" << mkl_p90_latency_ns
+              << "\t" << mkl_p10_bandwidth << "\t" << mkl_p50_bandwidth << "\t" << mkl_p90_bandwidth << std::endl;
     
     return 0;
 }
