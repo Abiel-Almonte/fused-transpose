@@ -67,12 +67,12 @@ extern "C" {
       uint32_t full_tiles= partial_block_small_dim/TILE_DIM;
       uint32_t partial_tile_small_dim= partial_block_small_dim%TILE_DIM;
       
-      //PATH 3: Edge Block, Full and Edge Tile
+      //Edge Block, Full and Edge Tile
       for (uint32_t bi= 0; bi < full_blocks; bi++){
         uint32_t block_base_addr= bi*BLOCK_DIM*stride + full_blocks*BLOCK_DIM;
         uint32_t block_base_addr_T= full_blocks*BLOCK_DIM*stride + bi*BLOCK_DIM;
         
-        //Full Tile
+        //PATH 2: Full Tile
         for (uint32_t ti= 0; ti < TILES_PER_BLOCK_DIM; ti++){
           for (uint32_t tj= 0; tj < full_tiles; tj++){
             swap_tile(
@@ -85,7 +85,7 @@ extern "C" {
           }
         }
         
-        //Edge Tile
+        //PATH 3: Edge Tile
         for (uint32_t ti= 0; ti < TILES_PER_BLOCK_DIM; ti++){
           uint32_t tile_base_addr= block_base_addr + ti*TILE_DIM*stride + full_tiles*TILE_DIM;
           uint32_t tile_base_addr_T= block_base_addr_T + full_tiles*TILE_DIM*stride + ti*TILE_DIM;
