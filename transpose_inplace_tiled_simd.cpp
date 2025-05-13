@@ -24,7 +24,7 @@ inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], uint32_
 
 extern "C" {
   void transpose_inplace_tiled_simd(float* A, const uint32_t m, const uint32_t stride) {
-    float* alignedA= static_cast<float*>(__builtin_assume_aligned(A, 32));
+    float* alignedA= static_cast<float*>(__builtin_assume_aligned(A, 64));
     alignas(32) float row_buffer[TILE_DIM][TILE_DIM];
 
     uint32_t num_blocks= (m + BLOCK_DIM - 1)/BLOCK_DIM;
