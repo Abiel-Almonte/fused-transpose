@@ -6,15 +6,15 @@ constexpr uint32_t BLOCK_DIM= 32;
 constexpr uint32_t TILE_DIM= 8;
 constexpr uint32_t TILES_PER_BLOCK_DIM= BLOCK_DIM / TILE_DIM;
 
-constexpr uint32_t SHFL_LO_MASK= 0b01000100; // get even pair
-constexpr uint32_t SHFL_HI_MASK= 0b11101110; // get odd pair
-constexpr uint32_t PERMUTE_LO_MASK= 0b00100000; // get first half of each
-constexpr uint32_t PERMUTE_HI_MASK= 0b00110001; // get second half of each
+constexpr uint32_t SHFL_LO_MASK= 0b01000100; //get even pair
+constexpr uint32_t SHFL_HI_MASK= 0b11101110; //get odd pair
+constexpr uint32_t PERMUTE_LO_MASK= 0b00100000; //get first half of each
+constexpr uint32_t PERMUTE_HI_MASK= 0b00110001; //get second half of each
 
-// transpose 1x1 with indices
+//transpose 1x1 with indices
 inline void swap_scalar(float* alignedA, const uint32_t tile_base_addr, const uint32_t tile_base_addr_T, const uint32_t i, const uint32_t j, const uint32_t stride);
 
-// tranpose 8x8 with registers
+//tranpose 8x8 with registers
 inline void simd_transpose_8x8(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride);
 inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], const uint32_t block_base_addr, const uint32_t block_base_addr_T, const uint32_t ti, const uint32_t tj, const uint32_t stride);
 
@@ -26,12 +26,13 @@ extern "C" {
     uint32_t num_blocks= (m + BLOCK_DIM - 1)/BLOCK_DIM;
     uint32_t full_blocks= m/BLOCK_DIM;
     
-    // PATH 1: full block, full tile, off diag block
+    //PATH 1: Full Block
     for (uint32_t bi= 0; bi < full_blocks; bi++) {
       for (uint32_t bj= bi+1; bj < full_blocks; bj++) {
         uint32_t block_base_addr= bi*BLOCK_DIM*stride + bj*BLOCK_DIM;
         uint32_t block_base_addr_T= bj*BLOCK_DIM*stride + bi*BLOCK_DIM;
         
+        //Off Diag Tile
         for (uint32_t ti= 0; ti < TILES_PER_BLOCK_DIM; ti++) {
           for (uint32_t tj= 0; tj < TILES_PER_BLOCK_DIM; tj++) {
             swap_tile(
@@ -45,7 +46,7 @@ extern "C" {
         }
       }
       
-      // PATH 2: full block, full tile, diag block
+      //Diag Tile
       uint32_t block_base_addr= bi*BLOCK_DIM*stride + bi*BLOCK_DIM;
       for (uint32_t ti= 0; ti < TILES_PER_BLOCK_DIM; ti++) {
         for (uint32_t tj= ti; tj < TILES_PER_BLOCK_DIM; tj++) {
@@ -60,18 +61,18 @@ extern "C" {
       }
     }
     
-    //process partial blocks 
+    //Edge Blocks 
     if(num_blocks > full_blocks){
       uint32_t partial_block_small_dim= m - full_blocks*BLOCK_DIM;
       uint32_t full_tiles= partial_block_small_dim/TILE_DIM;
       uint32_t partial_tile_small_dim= partial_block_small_dim%TILE_DIM;
       
-      // PATH 3: right edge partial blocks, full and parital tile, off diag
+      //PATH 3: Edge Block, Full and Edge Tile
       for (uint32_t bi= 0; bi < full_blocks; bi++){
         uint32_t block_base_addr= bi*BLOCK_DIM*stride + full_blocks*BLOCK_DIM;
         uint32_t block_base_addr_T= full_blocks*BLOCK_DIM*stride + bi*BLOCK_DIM;
         
-        //process full tiles
+        //Full Tile
         for (uint32_t ti= 0; ti < TILES_PER_BLOCK_DIM; ti++){
           for (uint32_t tj= 0; tj < full_tiles; tj++){
             swap_tile(
@@ -84,7 +85,7 @@ extern "C" {
           }
         }
         
-        //process right edge partial tiles
+        //Edge Tile
         for (uint32_t ti= 0; ti < TILES_PER_BLOCK_DIM; ti++){
           uint32_t tile_base_addr= block_base_addr + ti*TILE_DIM*stride + full_tiles*TILE_DIM;
           uint32_t tile_base_addr_T= block_base_addr_T + full_tiles*TILE_DIM*stride + ti*TILE_DIM;
@@ -102,9 +103,9 @@ extern "C" {
         }
       }
       
-      //PATH 4: partial block, full tiles, diag block
+      //PATH 4: Diag Edge Block, Full Tile
       uint32_t block_base_addr= full_blocks*BLOCK_DIM*stride + full_blocks*BLOCK_DIM;
-      for(uint32_t ti= 0; ti < full_tiles; ti++){ // can be cut off by bottom edge small dim
+      for(uint32_t ti= 0; ti < full_tiles; ti++){ //can be cut off by bottom edge small dim
         for(uint32_t tj= ti; tj < full_tiles; tj++){
           swap_tile(
             alignedA,
@@ -116,7 +117,7 @@ extern "C" {
         }
       }
       
-      //PATH 5: partial block, right edge partial tiles, diag block, off diag tile
+      //PATH 5: Diag Edge Block, Edge Tile
       for (uint32_t ti= 0; ti< full_tiles; ti++){
         uint32_t tile_base_addr= block_base_addr + ti*TILE_DIM*stride + full_tiles*TILE_DIM;
         uint32_t tile_base_addr_T= block_base_addr + full_tiles*TILE_DIM*stride+ ti*TILE_DIM;
@@ -133,7 +134,7 @@ extern "C" {
         }
       }
       
-      //PATH 6: partial block, bottom right edge tile, diag block, diag tile
+      //PATH 6: Diag Edge Block, Diag Edge Tile
       uint32_t tile_base_addr= block_base_addr + full_tiles*TILE_DIM*stride + full_tiles*TILE_DIM;
       
       for (uint32_t i= 0; i < partial_tile_small_dim; i++){
