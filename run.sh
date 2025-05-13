@@ -62,10 +62,12 @@ if [ "$sweep" = true ]; then
 
   done
 else
-
+  
   if [ "$use_perf" = true ]; then
+    echo "Benchmarking matrix size ${matrix_size}"
     ./build/hpit perf "$matrix_size"
   elif [ "$use_time" = true ]; then
+    echo "Benchmarking matrix size ${matrix_size}"
     ./build/hpit time "$matrix_size"
   else
     exit 1
