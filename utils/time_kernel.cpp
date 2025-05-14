@@ -167,7 +167,7 @@ extern "C" int run_timing_benchmark(const uint32_t m) {
     double mkl_p50_bandwidth= static_cast<double>(bytes/(mkl_p50_latency_ns));
     double mkl_p90_bandwidth= static_cast<double>(bytes/(mkl_p90_latency_ns));
 
-    std::cout << "implemenation" << "\t" << "size"  << "\t" << "p10_latency_ns" << "\t" << "p50_latency_ns" << "\t" <<"p90_latency_ns"
+    std::cout << "implementation" << "\t" << "size"  << "\t" << "p10_latency_ns" << "\t" << "p50_latency_ns" << "\t" <<"p90_latency_ns"
               <<  "\t" << "p10_bandwidth" << "\t" << "p50_bandwidth" << "\t" << "p90_bandwidth"  << std::endl;
 
     std::cout << "custom" << "\t" << m << "\t" << custom_p10_latency_ns << "\t" << custom_p50_latency_ns << "\t" << custom_p90_latency_ns
