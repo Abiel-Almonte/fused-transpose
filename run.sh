@@ -2,6 +2,10 @@
 
 set -e
 
+if [ -z "$MKLROOT"  ]; then
+  source /opt/intel/oneapi/setvars.sh
+fi 
+
 mkdir -p "build"
 
 CC=clang-17 CXX=clang++-17 cmake -G "Unix Makefiles" -B ./build -S .
