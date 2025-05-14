@@ -52,9 +52,13 @@ if [ "$sweep" = true ]; then
     
     if [ "$use_time" = true  ]; then
       output_file="./results/time/${size}.tsv"
+      ./build/hpit time "$size"
+      ./build/hpit time "$size"
       ./build/hpit time "$size" > "$output_file"
     elif [ "$use_perf" = true ]; then
       output_file="./results/perf/${size}.tsv"
+      ./build/hpit perf "$size"
+      ./build/hpit perf "$size"
       ./build/hpit perf "$size" > "$output_file"
     else
       exit 1
