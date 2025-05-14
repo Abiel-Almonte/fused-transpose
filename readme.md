@@ -3,9 +3,11 @@ A square inplace transpose kernel that outperforms Intel MKL's `mkl_simatcopy`.
 
 Achieving up to 1.45× speedup, maintaing microarchitectural behavior while improving throughput.
 
-> Benchmarked on Intel i7 14700K @ 5.5 GHz
 
 ![bar-chart](./images/bandwidth_bar_chart.png)
+![radar-chart](./images/perf_radar_chart.png)
+
+> Benchmarked on Intel i7 14700K @ 5.5 GHz
 
 # Methodology
 - Manual double cache blocking.  
@@ -30,8 +32,6 @@ Instead of using conditionals, the iteration space is partitioned so each loop o
 
 ## Vectorized 8x8 Transpose
 
-This subroutine contributed significantly to the speedup. 
+A subroutine that performs an in-register transpose of an 8×8 float tile. It loads 8 rows into ymmX registers from the source pointer, then reorganizes them into columns using a sequence of unpack, shuffle, and permute AVX2 intrinsics. The transposed data is then stored contiguously to the destination pointer.
 
 ![8x8-transpose](./images/8x8_transpose.png)
-
-![radar-chart](./images/perf_radar_chart.png)
