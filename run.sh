@@ -50,6 +50,8 @@ done
 mkdir -p results/perf
 mkdir -p results/time
 
+sudo cpupower frequency-set -g performance
+
 if [ "$sweep" = true ]; then
   for size in "${MATRIX_SIZES[@]}"; do
     echo "Benchmarking matrix size ${size}"
@@ -82,3 +84,5 @@ else
   fi
   
 fi
+
+sudo cpupower frequency-set -g powersave
