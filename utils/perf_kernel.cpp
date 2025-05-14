@@ -26,7 +26,7 @@ inline size_t get_alloc_size(uint32_t n_floats) {
     return static_cast<size_t>(allocated_cache_lines* CACHE_LINE_SIZE);
 }
 
-static long perf_event_open(perf_event_attr* pe, int cpu) {
+long perf_event_open(perf_event_attr* pe, int cpu) {
     return syscall(SYS_perf_event_open, pe, 0, cpu, -1, 0);
 }
 
