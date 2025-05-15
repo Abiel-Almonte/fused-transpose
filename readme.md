@@ -103,7 +103,7 @@ float* A= static_cast<float*>(aligned_alloc(CACHE_LINE_SIZE, get_alloc_size(m*st
 
 ## Cache Padding
 
-To avoid false sharing and cache trashing, row strides are padded with `floats_per_cacheline` to ensure consecutive rows occupy separate cache lines.
+To avoid cache trashing, row strides are padded with `floats_per_cacheline` to ensure consecutive rows occupy separate cache lines.
 
 ```cpp
 constexpr size_t CACHE_LINE_SIZE= 64;
