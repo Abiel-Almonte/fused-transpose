@@ -3,8 +3,10 @@
 #include <cstdlib>
 #include <cstdint>
 
-extern "C" int run_performance_counters(uint32_t m);
-extern "C" int run_timing_benchmark(uint32_t m);
+extern "C" {
+    int run_performance_counters(uint32_t m);
+    int run_timing_benchmark(uint32_t m);
+}
 
 void pin_to_cpu(int cpu_id) {
     cpu_set_t cpu_set;
@@ -20,10 +22,10 @@ void pin_to_cpu(int cpu_id) {
 
 int main(int argc, char** argv) {
     if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " <mode> <matrix_size>\n";
-        std::cerr << "'perf' or 'time'\n";
-        std::cerr << "matrix_size\n";
-        return 1;
+        std::cerr << "Usage: " << argv[0] << " <mode> <matrix_size>" << std::endl;
+        std::cerr << "'perf' or 'time'" << std::endl;
+        std::cerr << "matrix_size" << std::endl;
+        exit(EXIT_FAILURE);
     }
     
     pin_to_cpu(0);
@@ -36,5 +38,8 @@ int main(int argc, char** argv) {
     } 
     else if (mode == "time") {
         return run_timing_benchmark(matrix_size);
-    } 
+    }else{
+        std::cerr << "Mode " << mode << " Does Not Exist" << std::endl;
+        exit(EXIT_FAILURE);
+    }
 }
