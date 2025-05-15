@@ -45,24 +45,6 @@ Each data region flows into its own *__dedicated loop__*, progressing from hotte
 ### Progressive
 Colder paths reuse precomputed values and base addresses established by earlier, hotter loops. This not only reduces redundant computation but also enables *__loop removal__* via hardcoded base indexing. Thus, flattening higher level control flow into dedicated structures and eliminating the need for additional loop induction variables, resulting in cleaner logic and improved branch predictability.
 
-```cpp
-uint32_t block_base_addr= full_blocks*BLOCK_DIM*stride + full_blocks*BLOCK_DIM;
-//PATH 4: ...
-//PATH 5: ...
-//PATH 6: Diag Edge Block, Diag Edge Tile
-uint32_t tile_base_addr= block_base_addr + full_tiles*TILE_DIM*stride + full_tiles*TILE_DIM;
-for (uint32_t i= 0; i < tile_small_dim; i++){
-    for (uint32_t j= i + 1; j < tile_small_dim; j++){
-        swap_scalar(
-        alignedA,
-        tile_base_addr,
-        tile_base_addr,
-        i, j, stride
-        );
-    }
-}
-```
-
 ![specialization](./images/specialization.png)
 
 ## Vectorized 8x8 Transpose
