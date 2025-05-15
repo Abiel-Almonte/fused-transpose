@@ -25,7 +25,7 @@ The design maintains healthy microarchitectural behavior while improving through
 
 # Methodology
 - Manual double cache blocking.  
-- Loop structured specialization.  
+- Loop structured progressive specialization.  
 - Vectorized 8x8 transpose.
 
 ## Double Cache Blocking
