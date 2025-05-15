@@ -16,7 +16,7 @@ The design maintains healthy microarchitectural behavior while improving through
 # Methodology
 - Manual double cache blocking.  
 - Loop structured specialization.  
-- Vectorized 8x8 AVX2 transpose subroutine.
+- Vectorized 8x8 transpose.
 
 ## Double Cache Blocking
 Matrix is partitioned into **Blocks**, and each **Block** is paritioned into **Tiles**.
@@ -38,7 +38,6 @@ Colder paths reuse precomputed values and base addresses established by earlier,
 ![specialization](./images/specialization.png)
 
 ## Vectorized 8x8 Transpose
-
 A subroutine that performs an in-register transpose of an 8×8 tile on all code paths with the `Full Block` and/or `Full Tile` properties. Contributing significantly to the observed performance improvement over `mkl_simatcopy`.
 
 ```cpp
