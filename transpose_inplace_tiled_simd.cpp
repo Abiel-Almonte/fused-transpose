@@ -12,14 +12,15 @@ constexpr uint32_t PERMUTE_LO_MASK= 0b00100000; //get first half of each
 constexpr uint32_t PERMUTE_HI_MASK= 0b00110001; //get second half of each
 
 //transpose 1x1 with indices
-inline void swap_scalar(float* alignedA, const uint32_t tile_base_addr, const uint32_t tile_base_addr_T, const uint32_t i, const uint32_t j, const uint32_t stride);
+inline void swap_scalar(float* alignedA, const uint32_t tile_base_addr, const uint32_t tile_base_addr_T, const uint32_t i, const uint32_t j, const float alpha, const uint32_t stride);
 
 //tranpose 8x8 with registers
-inline void simd_transpose_8x8(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride);
-inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], const uint32_t block_base_addr, const uint32_t block_base_addr_T, const uint32_t ti, const uint32_t tj, const uint32_t stride);
+template <bool scale= false>
+inline void simd_transpose_8x8(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride, const float alpha);
+inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], const uint32_t block_base_addr, const uint32_t block_base_addr_T, const uint32_t ti, const uint32_t tj, const float alpha, const uint32_t stride);
 
 extern "C" {
-  void transpose_inplace_tiled_simd(float* A, const uint32_t m, const uint32_t stride) {
+  void transpose_inplace_tiled_simd(float* A, const uint32_t m, const float alpha, const uint32_t stride) {
     float* alignedA= static_cast<float*>(__builtin_assume_aligned(A, 64));
     alignas(32) float row_buffer[TILE_DIM][TILE_DIM];
     
@@ -40,7 +41,7 @@ extern "C" {
               row_buffer,
               block_base_addr,
               block_base_addr_T,
-              ti, tj, stride
+              ti, tj, alpha, stride
             );
           }
         }
@@ -55,7 +56,7 @@ extern "C" {
             row_buffer,
             block_base_addr,
             block_base_addr,
-            ti, tj, stride
+            ti, tj, alpha, stride
           );
         }
       }
@@ -81,7 +82,7 @@ extern "C" {
               row_buffer,
               block_base_addr,
               block_base_addr_T,
-              ti, tj, stride
+              ti, tj, alpha, stride
             );
           }
         }
@@ -97,7 +98,7 @@ extern "C" {
                 alignedA,
                 tile_base_addr,
                 tile_base_addr_T,
-                i, j, stride
+                i, j, alpha, stride
               );
             }
           } 
@@ -113,7 +114,7 @@ extern "C" {
             row_buffer,
             block_base_addr,
             block_base_addr,
-            ti, tj, stride
+            ti, tj, alpha, stride
           );
         }
       }
@@ -129,7 +130,7 @@ extern "C" {
               alignedA,
               tile_base_addr,
               tile_base_addr_T,
-              i, j, stride
+              i, j, alpha, stride
             );
           }
         }
@@ -143,21 +144,22 @@ extern "C" {
             alignedA,
             tile_base_addr,
             tile_base_addr,
-            i, j, stride
+            i, j, alpha, stride
           );
         }
+        alignedA[tile_base_addr + i*stride + i]*= alpha; //scale last few diag elems
       }
     }
   }
 }
 
-inline void swap_scalar(float* alignedA, const uint32_t tile_base_addr, const uint32_t tile_base_addr_T, const uint32_t i, const uint32_t j, const uint32_t stride){
-  float temp= alignedA[tile_base_addr + i*stride + j];
-  alignedA[tile_base_addr + i*stride + j]= alignedA[tile_base_addr_T + j*stride + i];
+inline void swap_scalar(float* alignedA, const uint32_t tile_base_addr, const uint32_t tile_base_addr_T, const uint32_t i, const uint32_t j, const float alpha, const uint32_t stride){
+  float temp= alpha*alignedA[tile_base_addr + i*stride + j];
+  alignedA[tile_base_addr + i*stride + j]= alpha*alignedA[tile_base_addr_T + j*stride + i];
   alignedA[tile_base_addr_T + j*stride +i]= temp; 
 }
 
-inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], const uint32_t block_base_addr, const uint32_t block_base_addr_T, const uint32_t ti, const uint32_t tj, const uint32_t stride){
+inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], const uint32_t block_base_addr, const uint32_t block_base_addr_T, const uint32_t ti, const uint32_t tj, const float alpha, const uint32_t stride){
   float* tile= alignedA + block_base_addr + ti*TILE_DIM*stride + tj*TILE_DIM;
   float* tile_T= alignedA + block_base_addr_T + tj*TILE_DIM*stride + ti*TILE_DIM;
   
@@ -165,19 +167,39 @@ inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], const u
     _mm256_storeu_ps(buffer[i], _mm256_loadu_ps(tile + i*stride));
   }
 
-  simd_transpose_8x8(tile_T, stride, tile, stride);
-  simd_transpose_8x8(&buffer[0][0], TILE_DIM, tile_T, stride);
+  if (alpha == 1.0f){
+    simd_transpose_8x8<false>(tile_T, stride, tile, stride, alpha);
+    simd_transpose_8x8<false>(&buffer[0][0], TILE_DIM, tile_T, stride, alpha);
+  }else{
+    simd_transpose_8x8<true>(tile_T, stride, tile, stride, alpha);
+    simd_transpose_8x8<true>(&buffer[0][0], TILE_DIM, tile_T, stride, alpha);
+  }
 }
 
-inline void simd_transpose_8x8(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride){
-  __m256 r0= _mm256_loadu_ps(src);
-  __m256 r1= _mm256_loadu_ps(src + src_stride);
-  __m256 r2= _mm256_loadu_ps(src + 2*src_stride);
-  __m256 r3= _mm256_loadu_ps(src + 3*src_stride);
-  __m256 r4= _mm256_loadu_ps(src + 4*src_stride);
-  __m256 r5= _mm256_loadu_ps(src + 5*src_stride);
-  __m256 r6= _mm256_loadu_ps(src + 6*src_stride);
-  __m256 r7= _mm256_loadu_ps(src + 7*src_stride);
+template<bool scale>
+inline void simd_transpose_8x8(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride, const float alpha){
+  __m256 r0, r1, r2, r3, r4, r5, r6, r7;
+
+  if constexpr (scale){
+    __m256 a= _mm256_set1_ps(alpha);
+    r0= _mm256_mul_ps(a, _mm256_loadu_ps(src));
+    r1= _mm256_mul_ps(a, _mm256_loadu_ps(src + src_stride));
+    r2= _mm256_mul_ps(a, _mm256_loadu_ps(src + 2*src_stride));
+    r3= _mm256_mul_ps(a, _mm256_loadu_ps(src + 3*src_stride));
+    r4= _mm256_mul_ps(a, _mm256_loadu_ps(src + 4*src_stride));
+    r5= _mm256_mul_ps(a, _mm256_loadu_ps(src + 5*src_stride));
+    r6= _mm256_mul_ps(a, _mm256_loadu_ps(src + 6*src_stride));
+    r7= _mm256_mul_ps(a, _mm256_loadu_ps(src + 7*src_stride));
+  } else{
+    r0= _mm256_loadu_ps(src);
+    r1= _mm256_loadu_ps(src + src_stride);
+    r2= _mm256_loadu_ps(src + 2*src_stride);
+    r3= _mm256_loadu_ps(src + 3*src_stride);
+    r4= _mm256_loadu_ps(src + 4*src_stride);
+    r5= _mm256_loadu_ps(src + 5*src_stride);
+    r6= _mm256_loadu_ps(src + 6*src_stride);
+    r7= _mm256_loadu_ps(src + 7*src_stride);
+  }
 
   __m256 quarter_0_1_4_5__0= _mm256_unpacklo_ps(r0, r1);
   __m256 quarter_2_3_6_7__0= _mm256_unpackhi_ps(r0, r1);

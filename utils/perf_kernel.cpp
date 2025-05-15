@@ -13,13 +13,13 @@
 
 #include </opt/intel/oneapi/mkl/2025.1/include/mkl.h>
 
-constexpr long long TARGET_CYCLES= 1'000'000'000; //1 Billion
+constexpr long long TARGET_CYCLES= 10'000'000'000; //10 Billion
 constexpr uint32_t BASE_ITERS= 500;
 
 constexpr uint32_t CACHE_LINE_SIZE= 64;
 constexpr uint32_t floats_per_cacheline= CACHE_LINE_SIZE/ sizeof(float);
 
-extern "C" void transpose_inplace_tiled_simd(float* A, const uint32_t m, const uint32_t stride);
+extern "C" void transpose_inplace_tiled_simd(float* A, const uint32_t m, const float alpha, const uint32_t stride);
 
 inline size_t get_alloc_size(uint32_t n_floats) {
     uint32_t allocated_cache_lines= (n_floats + floats_per_cacheline - 1)/floats_per_cacheline;
@@ -120,7 +120,7 @@ struct perf_event_manager {
     }
 };
 
-static uint32_t get_iters(const uint32_t m, const uint32_t stride) {
+static uint32_t get_iters(const uint32_t m, const uint32_t stride, const float alpha) {
     volatile double trash= 0;
     float* A = static_cast<float*>(aligned_alloc(64, get_alloc_size(m*stride)));
 
@@ -135,7 +135,7 @@ static uint32_t get_iters(const uint32_t m, const uint32_t stride) {
     }
     
     for (uint32_t i= 0; i < 50; i++) {
-        transpose_inplace_tiled_simd(A, m, stride);
+        transpose_inplace_tiled_simd(A, m, alpha, stride);
     }
     
     perf_event_manager perf(0);
@@ -145,7 +145,7 @@ static uint32_t get_iters(const uint32_t m, const uint32_t stride) {
     perf.enable_all();
     
     for (uint32_t i= 0; i < BASE_ITERS; i++) {
-        transpose_inplace_tiled_simd(A, m, stride);
+        transpose_inplace_tiled_simd(A, m, alpha, stride);
     }
     
     perf.disable_all();
@@ -212,9 +212,9 @@ void print_metrics(const std::string& impl, const std::vector<long long>& values
               << branches << '\t' << branch_misses << '\t' << branch_miss_rate << std::endl;
 }
 
-extern "C" int run_performance_counters(const uint32_t m) {
+extern "C" int run_performance_counters(const uint32_t m, const float alpha) {
     const uint32_t stride= m + floats_per_cacheline;
-    const uint32_t iters= get_iters(m, stride); 
+    const uint32_t iters= get_iters(m, stride, alpha); 
     const int cpu = 0;
 
     float* A = static_cast<float*>(aligned_alloc(64, get_alloc_size(m*stride)));
@@ -257,8 +257,12 @@ extern "C" int run_performance_counters(const uint32_t m) {
         labels.push_back(e.label);
     }
 
+    
+    for (int i= 0; i < 50; i++){
+        transpose_inplace_tiled_simd(A, m, alpha, stride);
+    }
+    
     const size_t max_counters= 4;
-
     for (size_t i= 0; i < events.size(); i += max_counters) {
         size_t end = std::min(i + max_counters, events.size());
         perf_event_manager perf(cpu);
@@ -276,7 +280,7 @@ extern "C" int run_performance_counters(const uint32_t m) {
         perf.enable_all();
 
         for (uint32_t i= 0; i < iters; i++){
-            transpose_inplace_tiled_simd(A, m, stride);
+            transpose_inplace_tiled_simd(A, m, alpha, stride);
         }
 
         perf.disable_all();
@@ -294,7 +298,7 @@ extern "C" int run_performance_counters(const uint32_t m) {
     std::fill(results.begin(), results.end(), 0);
 
     for (int i= 0; i < 50; i++){
-        mkl_simatcopy('R', 'T', m, m, 1.0f, A, stride, stride);
+        mkl_simatcopy('R', 'T', m, m, alpha, A, stride, stride);
     }
 
     for (size_t i = 0; i < events.size(); i += max_counters) {
@@ -314,7 +318,7 @@ extern "C" int run_performance_counters(const uint32_t m) {
         perf.enable_all();
 
         for (uint32_t i= 0; i < iters; i++){
-            mkl_simatcopy('R', 'T', m, m, 1.0f, A, stride, stride);
+            mkl_simatcopy('R', 'T', m, m, alpha, A, stride, stride);
         }
 
         perf.disable_all();

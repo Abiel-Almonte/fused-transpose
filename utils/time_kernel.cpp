@@ -12,14 +12,14 @@ constexpr uint32_t BASE_ITER= 500;
 constexpr uint32_t CACHE_LINE_SIZE= 64;
 constexpr uint32_t floats_per_cacheline= CACHE_LINE_SIZE/ sizeof(float); //16
 
-extern "C" void transpose_inplace_tiled_simd(float* A, const uint32_t m, const uint32_t stride);
+extern "C" void transpose_inplace_tiled_simd(float* A, const uint32_t m, const float alpha, const uint32_t stride);
 
 inline size_t get_alloc_size(uint32_t n_floats){
     uint32_t allocated_cache_lines= (n_floats + floats_per_cacheline - 1)/floats_per_cacheline;
     return static_cast<size_t>(allocated_cache_lines* CACHE_LINE_SIZE);
 }
 
-static uint32_t get_iters(const uint32_t m, const uint32_t stride) {
+static uint32_t get_iters(const uint32_t m, const uint32_t stride, const float alpha) {
     std::vector<double> timings_s(BASE_ITER); //seconds
     volatile double trash= 0;
 
@@ -36,12 +36,12 @@ static uint32_t get_iters(const uint32_t m, const uint32_t stride) {
     }
 
     for (uint32_t i = 0; i < 50; i++) {
-        transpose_inplace_tiled_simd(A, m, stride);
+        transpose_inplace_tiled_simd(A, m, alpha, stride);
     }
 
     for (uint32_t i = 0; i < BASE_ITER; i++){
         auto start= std::chrono::high_resolution_clock::now();
-        transpose_inplace_tiled_simd(A, m, stride);
+        transpose_inplace_tiled_simd(A, m, alpha, stride);
         auto end= std::chrono::high_resolution_clock::now();
 
         double latency_ns= std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
@@ -63,9 +63,9 @@ static uint32_t get_iters(const uint32_t m, const uint32_t stride) {
     return static_cast<uint32_t>(std::ceil(TARGET_SEC/ seconds_per_iteration));
 }
 
-extern "C" int run_timing_benchmark(const uint32_t m) {
+extern "C" int run_timing_benchmark(const uint32_t m, const float alpha) {
     const uint32_t stride= m + floats_per_cacheline;
-    const uint32_t iters= get_iters(m, stride);
+    const uint32_t iters= get_iters(m, stride, alpha);
     const uint64_t bytes= static_cast<uint64_t>(((m * (m-1))/2)* sizeof(float) * 4); // 2 loads 2 stores
     volatile double trash= 0;
     
@@ -89,8 +89,8 @@ extern "C" int run_timing_benchmark(const uint32_t m) {
     std::vector<double> mkl_timings_ns(iters);
     
     for (uint32_t i= 0; i < 50; i++) {
-        transpose_inplace_tiled_simd(A_custom, m, stride);
-        mkl_simatcopy('R', 'T', m, m, 1.0f, A_mkl, stride, stride);
+        transpose_inplace_tiled_simd(A_custom, m, alpha, stride);
+        mkl_simatcopy('R', 'T', m, m, alpha, A_mkl, stride, stride);
     }
     
     for (uint32_t i= 0; i < iters; i++) {
@@ -101,7 +101,7 @@ extern "C" int run_timing_benchmark(const uint32_t m) {
         }
         
         auto start= std::chrono::high_resolution_clock::now();
-        transpose_inplace_tiled_simd(A_custom, m, stride);
+        transpose_inplace_tiled_simd(A_custom, m, alpha, stride);
         auto end= std::chrono::high_resolution_clock::now();
         
         custom_timings_ns[i]= std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
@@ -122,10 +122,16 @@ extern "C" int run_timing_benchmark(const uint32_t m) {
         }
         
         auto start= std::chrono::high_resolution_clock::now();
-        mkl_simatcopy('R', 'T', m, m, 1.0f, A_mkl, stride, stride);
+        mkl_simatcopy('R', 'T', m, m, alpha, A_mkl, stride, stride);
         auto end= std::chrono::high_resolution_clock::now();
         
         mkl_timings_ns[i]= std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+        for (uint32_t ii= 0; ii < m; ii++) {
+            for (uint32_t jj= 0; jj < m; jj++) {
+                trash+= A_mkl[ii*stride + jj];
+            }
+        }
     }
     
     //sanity check
