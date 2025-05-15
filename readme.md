@@ -51,3 +51,52 @@ A subroutine that performs an in-register transpose of an 8×8 tile on all code 
 > TileDim is fixed at 8 to align perfectly with AVX2 register width.
 
 ![8x8-transpose](./images/8x8_transpose.png)
+
+# Validation
+The kernels were benchmarked reliably with:
+
+- Stable Clock Frequency
+- Core Pinning
+- Aligned Memory
+- Cache Padding 
+
+Ensuring the reported performance improvements are meaningful and reproducible.
+
+## Stable Clock Frequency
+All benchmarks are run with the CPU frequency governor, pinning all cores to their maximum frequency throughout the run. Ensuring consistent cycle counts and throughput measurements.
+
+```bash
+sudo cpupower frequency-set -g performance
+```
+
+## Core Pinning
+To minimize OS core migration and schedueling jitter, both kernels were pinned to a single physical core.
+
+```cpp
+cpu_set_t cpu_set;
+CPU_ZERO(&cpu_set);
+CPU_SET(cpu_id, &cpu_set);
+sched_setaffinity(0, sizeof(cpu_set_t), &cpu_set);
+```
+
+##  Memory Alignment
+All memory allocations are 64-byte aligned. Avoids penalties from misaligned loads/stores, while matching the CPU cache line size.
+
+```cpp
+inline size_t get_alloc_size(uint32_t n_floats){
+    uint32_t allocated_cache_lines= (n_floats + floats_per_cacheline - 1)/floats_per_cacheline;
+    return static_cast<size_t>(allocated_cache_lines* CACHE_LINE_SIZE);
+}
+
+float* A= static_cast<float*>(aligned_alloc(CACHE_LINE_SIZE, get_alloc_size(m*stride)));
+```
+
+## Cache Padding
+
+To avoid false sharing and cache trashing, row strides are padded with `floats_per_cacheline` to ensure consecutive rows occupy separate cache lines.
+
+```cpp
+constexpr size_t CACHE_LINE_SIZE= 64;
+constexpr size_t floats_per_cacheline= CACHE_LINE_SIZE / sizeof(float);
+const uint32_t stride= m + floats_per_cacheline;
+```
