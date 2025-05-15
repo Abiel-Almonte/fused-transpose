@@ -1,3 +1,13 @@
+# Overview
+
+* [About](#about)
+* [Methodology](#methodology)
+
+  * [Double Cache Blocking](#double-cache-blocking)
+  * [Loop-Structured Progressive Specialization](#loop-structured-progressive-specialization)
+  * [Vectorized 8x8 Transpose](#vectorized-8x8-transpose)
+* [Validation](#validation)
+
 # About
 An inplace square transpose kernel that reliably **outperforms Intel MKL**'s `mkl_simatcopy` achieving up to a **1.49× speedup**.
 
