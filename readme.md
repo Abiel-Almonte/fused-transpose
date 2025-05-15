@@ -29,7 +29,7 @@ The design maintains healthy microarchitectural behavior while improving through
 - Vectorized 8x8 transpose.
 
 ## Double Cache Blocking
-Matrix is partitioned into **Blocks**, and each **Block** is paritioned into **Tiles**.
+Matrix is partitioned into **Blocks**, and each **Block** is partitioned into **Tiles**.
 
 - **BlockDim (BD)**: manually tuned to 32 utilizing `perf`.  
 - **TileDim (TD)**: fixed at 8 to enable vectorized 8x8 transpose.
@@ -40,10 +40,29 @@ Matrix is partitioned into **Blocks**, and each **Block** is paritioned into **T
 To eliminate all runtime branching, the algorithm is **progressively specialized**: 
 
 ### Specialization
-Each data region flows into its own dedicated *__loop__*, progressing from hotter to colder paths by partitioning the iteration space so each loop only operates on the cases it's explicitly designed for, avoiding conditionals and improving branch predictability.
+Each data region flows into its own *__dedicated loop__*, progressing from hotter to colder paths by partitioning the iteration space so each loop only operates on the cases it's explicitly designed for, avoiding conditionals and improving branch predictability.
 
 ### Progressive
-Colder paths reuse precomputed values and base addresses established by earlier, hotter loops, reducing redundant computation while maintaining branch free control flow.
+Colder paths reuse precomputed values and base addresses established by earlier, hotter loops. This not only reduces redundant computation but also enables loop removal via hardcoded base indexing. Thus, flattening higher level control flow into dedicated structures and eliminating the need for additional loop induction variables, resulting in cleaner logic and improved branch predictability.
+
+```cpp
+uint32_t block_base_addr= full_blocks*BLOCK_DIM*stride + full_blocks*BLOCK_DIM;
+//PATH 4: ...
+//PATH 5: ...
+//PATH 6: Diag Edge Block, Diag Edge Tile
+uint32_t tile_base_addr= block_base_addr + full_tiles*TILE_DIM*stride + full_tiles*TILE_DIM;
+for (uint32_t i= 0; i < tile_small_dim; i++){
+    for (uint32_t j= i + 1; j < tile_small_dim; j++){
+        swap_scalar(
+        alignedA,
+        tile_base_addr,
+        tile_base_addr,
+        i, j, stride
+        );
+    }
+}
+```
+<br />
 
 ![specialization](./images/specialization.png)
 
