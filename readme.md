@@ -62,7 +62,6 @@ for (uint32_t i= 0; i < tile_small_dim; i++){
     }
 }
 ```
-<br />
 
 ![specialization](./images/specialization.png)
 
