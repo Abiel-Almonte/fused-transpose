@@ -9,7 +9,7 @@
 * [Validation](#validation)
 
 # About
-A cross platform inplace, square matrix, **transpose + scale** fused kernel that reliably **outperforms Intel MKL**'s `mkl_simatcopy` and OpenBLAS's `cblas_simatcopy` achieving up to a **5.8× speedup** for common matrix sizes.
+A high-performance, cross platform, **fused inplace transpose-scale kernel** for square matrices, that reliably outperforms Intel MKL's `mkl_simatcopy` and OpenBLAS's `cblas_simatcopy` achieving up to a **5.8× speedup** for common matrix sizes.
 
 $$
 \mathbf{A} := \alpha \mathbf{A}^\top
