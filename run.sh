@@ -56,7 +56,6 @@ done
 mkdir -p results/perf
 mkdir -p results/time
 
-sudo cpupower frequency-set -g performance > /dev/null
 
 if [ "$sweep" = true ]; then
   for size in "${MATRIX_SIZES[@]}"; do
@@ -90,5 +89,3 @@ else
   fi
   
 fi
-
-sudo cpupower frequency-set -g powersave > /dev/null
