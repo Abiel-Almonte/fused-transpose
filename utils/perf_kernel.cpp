@@ -15,12 +15,10 @@
 #if defined(__AVX2__)
 
     #include </opt/intel/oneapi/mkl/2025.1/include/mkl.h>
-    mkl_set_num_threads(1);
 
 #elif defined(__ARM_NEON__) || defined(__ARM_NEON)
 
-    #include </opt/homebrew/opt/openblas/include/cblas.h>
-    openblas_set_num_threads(1);
+    #include <cblas.h>
   
 #else
   #error "Only AVX2 and NEON are supported"
