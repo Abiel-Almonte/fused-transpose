@@ -12,15 +12,26 @@ add_executable(hpit
     transpose_inplace_tiled_simd.cpp
 )
 
-target_include_directories(hpit PRIVATE /opt/intel/oneapi/mkl/2025.1/include)
-target_compile_options(hpit PRIVATE -O3 -march=native -ffast-math)
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|i[3-6]86")
+    set(IS_X86 TRUE)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm")
+    set(IS_ARM TRUE)
+endif()
 
-target_link_libraries(hpit PRIVATE
-    # mkl libs
-    mkl_intel_lp64
-    mkl_sequential
-    mkl_core
-    pthread
-    m
-    dl
-)
+if (IS_X86)
+    target_include_directories(hpit PRIVATE /opt/intel/oneapi/mkl/2025.1/include)
+    target_link_libraries(hpit PRIVATE
+        mkl_intel_lp64
+        mkl_sequential
+        mkl_core
+        pthread
+        m
+        dl
+    )
+elseif(IS_ARM)
+    target_include_directories(hpit PRIVATE /opt/homebrew/opt/openblas/include)
+    find_library(OPENBLAS_LIB openblas PATHS /opt/homebrew/opt/openblas/lib)
+    target_link_libraries(hpit PRIVATE ${OPENBLAS_LIB})
+endif()
+
+target_compile_options(hpit PRIVATE -O3 -march=native -ffast-math)
