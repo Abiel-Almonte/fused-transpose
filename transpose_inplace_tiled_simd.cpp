@@ -1,10 +1,20 @@
 #include <cstdint>
 
-#include <immintrin.h>
-#include <arm_neon.h>
+#if defined(__AVX2__)
+  #include <immintrin.h>
+
+  //256 bit registers
+  constexpr uint32_t TILE_DIM = 8;
+#elif defined(__ARM_NEON__) || defined(__ARM_NEON)
+  #include <arm_neon.h>
+
+  //128 bit registers
+  constexpr uint32_t TILE_DIM = 4;
+#else
+  #error "Only AVX2 and NEON are supported"
+#endif
 
 constexpr uint32_t BLOCK_DIM= 32;
-constexpr uint32_t TILE_DIM= 8;
 constexpr uint32_t TILES_PER_BLOCK_DIM= BLOCK_DIM / TILE_DIM;
 
 constexpr uint32_t SHFL_LO_MASK= 0b01000100; //get even pair
@@ -13,8 +23,8 @@ constexpr uint32_t PERMUTE_LO_MASK= 0b00100000; //get first half of each
 constexpr uint32_t PERMUTE_HI_MASK= 0b00110001; //get second half of each
 
 //wrapper
-template <bool scale>
-inline void swap(float* alignedA, uint32_t m, float alpha, uint32_t stride, uint32_t full_blocks, float row_buffer[TILE_DIM][TILE_DIM]);
+inline void transpose_inplace_tiled_simd_impl(float* A, const uint32_t m, const float alpha, const uint32_t stride);
+inline void transpose_inplace_tiled_simd_impl(float* A, const uint32_t m, const uint32_t stride);
 
 //transpose full blocks
 template <bool scale> 
@@ -28,7 +38,7 @@ inline void swap_edge(float* alignedA, uint32_t m, float alpha, uint32_t stride,
 template <bool scale>
 inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], const uint32_t block_base_addr, const uint32_t block_base_addr_T, const uint32_t ti, const uint32_t tj, const float alpha, const uint32_t stride);
 template <bool scale>
-inline void simd_transpose_8x8(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride, const float alpha);
+inline void simd_transpose_tile(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride, const float alpha);
 
 //transpose 1x1 with indices
 template <bool scale>
@@ -36,30 +46,25 @@ inline void swap_scalar(float* alignedA, const uint32_t tile_base_addr, const ui
 
 extern "C" {
   void transpose_inplace_tiled_simd(float* A, const uint32_t m, const float alpha, const uint32_t stride) {
-    float* alignedA= static_cast<float*>(__builtin_assume_aligned(A, 64));
-    alignas(32) float row_buffer[TILE_DIM][TILE_DIM];
-    
-    uint32_t full_blocks= m/BLOCK_DIM;
-    
-    if (alpha != 1.0f){
-      swap<true>(
-        alignedA, m, alpha, stride,
-        full_blocks, row_buffer
+    if (alpha == 1.0f){
+      transpose_inplace_tiled_simd_impl(
+        A, m, stride
       );
-
-    } else{
-      swap<false>(
-        alignedA, m, alpha, stride,
-        full_blocks, row_buffer
+    }else{
+      transpose_inplace_tiled_simd_impl(
+        A, m, alpha, stride
       );
     }
   }
 }
 
-template <bool scale>
-inline void swap(float* alignedA, uint32_t m, float alpha, uint32_t stride, uint32_t full_blocks, float row_buffer[TILE_DIM][TILE_DIM]){
+inline void transpose_inplace_tiled_simd_impl(float* A, const uint32_t m, const float alpha, const uint32_t stride){
+  float* alignedA= static_cast<float*>(__builtin_assume_aligned(A, 64));
+  alignas(32) float row_buffer[TILE_DIM][TILE_DIM];
+  
+  uint32_t full_blocks= m/BLOCK_DIM;
   //Full Blocks
-  swap_full<scale>(
+  swap_full<true>(
     alignedA, m, alpha, stride,
     full_blocks, row_buffer
   );
@@ -67,8 +72,30 @@ inline void swap(float* alignedA, uint32_t m, float alpha, uint32_t stride, uint
   //Edge Blocks 
   uint32_t num_blocks= (m + BLOCK_DIM - 1)/BLOCK_DIM;
   if(num_blocks > full_blocks){
-    swap_edge<scale>(
+    swap_edge<true>(
       alignedA, m, alpha, stride,
+      full_blocks, row_buffer
+    );
+  }
+}
+
+
+inline void transpose_inplace_tiled_simd_impl(float* A, const uint32_t m, const uint32_t stride){
+  float* alignedA= static_cast<float*>(__builtin_assume_aligned(A, 64));
+  alignas(32) float row_buffer[TILE_DIM][TILE_DIM];
+  
+  uint32_t full_blocks= m/BLOCK_DIM;
+  //Full Blocks
+  swap_full<false>(
+    alignedA, m, 0.0f, stride,
+    full_blocks, row_buffer
+  );
+
+  //Edge Blocks 
+  uint32_t num_blocks= (m + BLOCK_DIM - 1)/BLOCK_DIM;
+  if(num_blocks > full_blocks){
+    swap_edge<false>(
+      alignedA, m, 0.0f, stride,
       full_blocks, row_buffer
     );
   }
@@ -228,34 +255,32 @@ inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], const u
     _mm256_storeu_ps(buffer[i], _mm256_loadu_ps(tile + i*stride));
   }
 
-  simd_transpose_8x8<scale>(tile_T, stride, tile, stride, alpha);
-  simd_transpose_8x8<scale>(&buffer[0][0], TILE_DIM, tile_T, stride, alpha);
+  simd_transpose_tile<scale>(tile_T, stride, tile, stride, alpha);
+  simd_transpose_tile<scale>(&buffer[0][0], TILE_DIM, tile_T, stride, alpha);
 }
 
 template<bool scale>
-inline void simd_transpose_8x8(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride, const float alpha){
-#ifdef __AVX2__
-    __m256 r0, r1, r2, r3, r4, r5, r6, r7;
+inline void simd_transpose_tile(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride, const float alpha){
+#if defined(__AVX2__)
+    __m256 r0= _mm256_loadu_ps(src);
+    __m256 r1= _mm256_loadu_ps(src + src_stride);
+    __m256 r2= _mm256_loadu_ps(src + 2*src_stride);
+    __m256 r3= _mm256_loadu_ps(src + 3*src_stride);
+    __m256 r4= _mm256_loadu_ps(src + 4*src_stride);
+    __m256 r5= _mm256_loadu_ps(src + 5*src_stride);
+    __m256 r6= _mm256_loadu_ps(src + 6*src_stride);
+    __m256 r7= _mm256_loadu_ps(src + 7*src_stride);
 
     if constexpr (scale){
       __m256 a= _mm256_set1_ps(alpha);
-      r0= _mm256_mul_ps(a, _mm256_loadu_ps(src));
-      r1= _mm256_mul_ps(a, _mm256_loadu_ps(src + src_stride));
-      r2= _mm256_mul_ps(a, _mm256_loadu_ps(src + 2*src_stride));
-      r3= _mm256_mul_ps(a, _mm256_loadu_ps(src + 3*src_stride));
-      r4= _mm256_mul_ps(a, _mm256_loadu_ps(src + 4*src_stride));
-      r5= _mm256_mul_ps(a, _mm256_loadu_ps(src + 5*src_stride));
-      r6= _mm256_mul_ps(a, _mm256_loadu_ps(src + 6*src_stride));
-      r7= _mm256_mul_ps(a, _mm256_loadu_ps(src + 7*src_stride));
-    } else{
-      r0= _mm256_loadu_ps(src);
-      r1= _mm256_loadu_ps(src + src_stride);
-      r2= _mm256_loadu_ps(src + 2*src_stride);
-      r3= _mm256_loadu_ps(src + 3*src_stride);
-      r4= _mm256_loadu_ps(src + 4*src_stride);
-      r5= _mm256_loadu_ps(src + 5*src_stride);
-      r6= _mm256_loadu_ps(src + 6*src_stride);
-      r7= _mm256_loadu_ps(src + 7*src_stride);
+      r0= _mm256_mul_ps(a, r0);
+      r1= _mm256_mul_ps(a, r1);
+      r2= _mm256_mul_ps(a, r2);
+      r3= _mm256_mul_ps(a, r3);
+      r4= _mm256_mul_ps(a, r4);
+      r5= _mm256_mul_ps(a, r5);
+      r6= _mm256_mul_ps(a, r6);
+      r7= _mm256_mul_ps(a, r7);
     }
 
     __m256 quarter_0_1_4_5__0= _mm256_unpacklo_ps(r0, r1);
@@ -305,8 +330,36 @@ inline void simd_transpose_8x8(const float* src, const uint32_t src_stride, floa
 
     _mm256_storeu_ps(dst + 3*dst_stride, c3);
     _mm256_storeu_ps(dst + 7*dst_stride, c7);
-#endif
-#ifdef __ARM_NEON__
-//neon version goes here ...
+#elif  defined(__ARM_NEON__) || defined(__ARM_NEON)
+    float32x4_t r0= vld1q_f32(src);
+    float32x4_t r1= vld1q_f32(src + src_stride);
+    float32x4_t r2= vld1q_f32(src + 2*src_stride);
+    float32x4_t r3= vld1q_f32(src + 3*src_stride);
+
+    if constexpr(scale){
+      float32x4_t a= vdupq_n_f32(alpha);
+      r0= vmulq_f32(a, r0);
+      r1= vmulq_f32(a, r1);
+      r2= vmulq_f32(a, r2);
+      r3= vmulq_f32(a, r3);
+    }
+
+    float32x4_t half_0_2__0= vtrn1q_f32(r0, r1);
+    float32x4_t half_1_3__0= vtrn2q_f32(r0, r1);
+
+    float32x4_t half_0_2__1= vtrn1q_f32(r2, r3);
+    float32x4_t half_1_3__1= vtrn2q_f32(r2, r3);
+
+    float32x4_t c0= vcombine_f32(vget_low_f32(half_0_2__0), vget_low_f32(half_0_2__1));
+    float32x4_t c2= vcombine_f32(vget_high_f32(half_0_2__0), vget_high_f32(half_0_2__1));
+
+    float32x4_t c1= vcombine_f32(vget_low_f32(half_1_3__0), vget_low_f32(half_1_3__1));
+    float32x4_t c3= vcombine_f32(vget_high_f32(half_1_3__0), vget_high_f32(half_1_3__1));
+
+    vst1q_f32(dst, c0);
+    vst1q_f32(dst + 2*dst_stride, c2);
+
+    vst1q_f32(dst + dst_stride, c1);
+    vst1q_f32(dst + 3*dst_stride, c3);
 #endif
 }
