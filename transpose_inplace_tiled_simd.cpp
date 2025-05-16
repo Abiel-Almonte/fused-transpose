@@ -259,7 +259,11 @@ inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], const u
     float* tile_T= alignedA + block_base_addr_T + tj*TILE_DIM*stride + ti*TILE_DIM;
 
     for(uint8_t i= 0; i< TILE_DIM; i++){
-        _mm256_storeu_ps(buffer[i], _mm256_loadu_ps(tile + i*stride));
+        #if defined(__AVX2__)
+            _mm256_storeu_ps(buffer[i], _mm256_loadu_ps(tile + i*stride));
+        #elif defined(__ARM_NEON__) || defined(__ARM_NEON)
+            vst1q_f32(buffer[i], vld1q_f32(tile + i*stride));
+        #endif
     }
 
     simd_transpose_tile<scale>(tile_T, stride, tile, stride, alpha);
