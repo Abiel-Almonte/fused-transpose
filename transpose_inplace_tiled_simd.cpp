@@ -4,23 +4,24 @@
   #include <immintrin.h>
 
   //256 bit registers
-  constexpr uint32_t TILE_DIM = 8;
+  constexpr uint32_t TILE_DIM= 8;
+
+  //simd consts
+  constexpr uint32_t SHFL_LO_MASK= 0b01000100; //get even pair
+  constexpr uint32_t SHFL_HI_MASK= 0b11101110; //get odd pair
+  constexpr uint32_t PERMUTE_LO_MASK= 0b00100000; //get first half of each
+  constexpr uint32_t PERMUTE_HI_MASK= 0b00110001; //get second half of each
 #elif defined(__ARM_NEON__) || defined(__ARM_NEON)
   #include <arm_neon.h>
 
   //128 bit registers
-  constexpr uint32_t TILE_DIM = 4;
+  constexpr uint32_t TILE_DIM= 4;
 #else
   #error "Only AVX2 and NEON are supported"
 #endif
 
 constexpr uint32_t BLOCK_DIM= 32;
 constexpr uint32_t TILES_PER_BLOCK_DIM= BLOCK_DIM / TILE_DIM;
-
-constexpr uint32_t SHFL_LO_MASK= 0b01000100; //get even pair
-constexpr uint32_t SHFL_HI_MASK= 0b11101110; //get odd pair
-constexpr uint32_t PERMUTE_LO_MASK= 0b00100000; //get first half of each
-constexpr uint32_t PERMUTE_HI_MASK= 0b00110001; //get second half of each
 
 //wrapper
 inline void transpose_inplace_tiled_simd_impl(float* A, const uint32_t m, const float alpha, const uint32_t stride);
