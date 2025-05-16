@@ -8,13 +8,14 @@
 #if defined(__AVX2__)
 
     #include </opt/intel/oneapi/mkl/2025.1/include/mkl.h>
-    mkl_set_num_threads(1);
 
 #elif defined(__ARM_NEON__) || defined(__ARM_NEON)
 
-    #include </opt/homebrew/opt/openblas/include/cblas.h>
-    openblas_set_num_threads(1);
-
+    #if defined(__APPLE__)
+        #include </opt/homebrew/opt/openblas/include/cblas.h>
+    #else
+        #include <cblas.h>
+    #endif
 #else
 
     #error "Only AVX2 and NEON are supported"
@@ -110,7 +111,7 @@ extern "C" int run_timing_benchmark(const uint32_t m, const float alpha) {
 
         #elif defined(__ARM_NEON__) || defined(__ARM_NEON)
 
-            cblas_simatcopy(CblasRowMajor, CblasTrans, m, m, alpha, A_mkl, stride, A, stride);
+            cblas_simatcopy(CblasRowMajor, CblasTrans, m, m, alpha, A_mkl, stride, stride);
 
         #endif
     }
@@ -150,7 +151,7 @@ extern "C" int run_timing_benchmark(const uint32_t m, const float alpha) {
 
         #elif defined(__ARM_NEON__) || defined(__ARM_NEON)
 
-            cblas_simatcopy(CblasRowMajor, CblasTrans, m, m, alpha, A_mkl, stride, A, stride);
+            cblas_simatcopy(CblasRowMajor, CblasTrans, m, m, alpha, A_mkl, stride, stride);
 
         #endif
         auto end= std::chrono::high_resolution_clock::now();
@@ -209,7 +210,13 @@ extern "C" int run_timing_benchmark(const uint32_t m, const float alpha) {
     std::cout << "custom" << "\t" << m << "\t" << custom_p10_latency_ns << "\t" << custom_p50_latency_ns << "\t" << custom_p90_latency_ns
               << "\t" << custom_p10_bandwidth << "\t" << custom_p50_bandwidth << "\t" << custom_p90_bandwidth << std::endl;
 
-    std::cout << "mkl" << "\t" << m << "\t" << mkl_p10_latency_ns << "\t" << mkl_p50_latency_ns << "\t" << mkl_p90_latency_ns
+    #if defined(__AVX2__)
+        std::string other_kernel_name= "mkl";
+    #elif defined(__ARM_NEON__) || defined(__ARM_NEON)
+        std::string other_kernel_name= "openblas";
+    #endif
+    
+    std::cout << other_kernel_name << "\t" << m << "\t" << mkl_p10_latency_ns << "\t" << mkl_p50_latency_ns << "\t" << mkl_p90_latency_ns
               << "\t" << mkl_p10_bandwidth << "\t" << mkl_p50_bandwidth << "\t" << mkl_p90_bandwidth << std::endl;
     
     return 0;
