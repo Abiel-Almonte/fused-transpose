@@ -29,27 +29,15 @@
 constexpr uint32_t BLOCK_DIM= 32;
 constexpr uint32_t TILES_PER_BLOCK_DIM= BLOCK_DIM / TILE_DIM;
 
-//wrapper
 inline void transpose_inplace_tiled_simd_impl(float* A, const uint32_t m, const float alpha, const uint32_t stride);
 inline void transpose_inplace_tiled_simd_impl(float* A, const uint32_t m, const uint32_t stride);
 
-//transpose full blocks
-template <bool scale> 
-inline void swap_full(float* alignedA, uint32_t m, float alpha, uint32_t stride, uint32_t full_blocks, float row_buffer[TILE_DIM][TILE_DIM]);
+template <bool scale> inline void swap_full(float* alignedA, uint32_t m, float alpha, uint32_t stride, uint32_t full_blocks, float row_buffer[TILE_DIM][TILE_DIM]);
+template <bool scale> inline void swap_edge(float* alignedA, uint32_t m, float alpha, uint32_t stride, uint32_t full_blocks, float row_buffer[TILE_DIM][TILE_DIM]);
+template <bool scale> inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], const uint32_t block_base_addr, const uint32_t block_base_addr_T, const uint32_t ti, const uint32_t tj, const float alpha, const uint32_t stride);
+template <bool scale> inline void swap_scalar(float* alignedA, const uint32_t tile_base_addr, const uint32_t tile_base_addr_T, const uint32_t i, const uint32_t j, const float alpha, const uint32_t stride);
 
-//transpose edge blocks
-template <bool scale>
-inline void swap_edge(float* alignedA, uint32_t m, float alpha, uint32_t stride, uint32_t full_blocks, float row_buffer[TILE_DIM][TILE_DIM]);
-
-//tranpose 8x8 with registers
-template <bool scale>
-inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], const uint32_t block_base_addr, const uint32_t block_base_addr_T, const uint32_t ti, const uint32_t tj, const float alpha, const uint32_t stride);
-template <bool scale>
-inline void simd_transpose_tile(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride, const float alpha);
-
-//transpose 1x1 with indices
-template <bool scale>
-inline void swap_scalar(float* alignedA, const uint32_t tile_base_addr, const uint32_t tile_base_addr_T, const uint32_t i, const uint32_t j, const float alpha, const uint32_t stride);
+template <bool scale> inline void simd_transpose_tile(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride, const float alpha);
 
 extern "C" {
     void transpose_inplace_tiled_simd(float* A, const uint32_t m, const float alpha, const uint32_t stride) {
