@@ -5,7 +5,21 @@
 #include <vector>
 #include <algorithm>
 
-#include </opt/intel/oneapi/mkl/2025.1/include/mkl.h>
+#if defined(__AVX2__)
+
+    #include </opt/intel/oneapi/mkl/2025.1/include/mkl.h>
+    mkl_set_num_threads(1);
+
+#elif defined(__ARM_NEON__) || defined(__ARM_NEON)
+
+    #include </opt/homebrew/opt/openblas/include/cblas.h>
+    openblas_set_num_threads(1);
+
+#else
+
+    #error "Only AVX2 and NEON are supported"
+    
+#endif
 
 constexpr double TARGET_SEC= 0.5;
 constexpr uint32_t BASE_ITER= 500;
@@ -90,7 +104,15 @@ extern "C" int run_timing_benchmark(const uint32_t m, const float alpha) {
     
     for (uint32_t i= 0; i < 50; i++) {
         transpose_inplace_tiled_simd(A_custom, m, alpha, stride);
-        mkl_simatcopy('R', 'T', m, m, alpha, A_mkl, stride, stride);
+        #if defined(__AVX2__)
+
+            mkl_simatcopy('R', 'T', m, m, alpha, A_mkl, stride, stride);
+
+        #elif defined(__ARM_NEON__) || defined(__ARM_NEON)
+
+            cblas_simatcopy(CblasRowMajor, CblasTrans, m, m, alpha, A_mkl, stride, A, stride);
+
+        #endif
     }
     
     for (uint32_t i= 0; i < iters; i++) {
@@ -122,7 +144,15 @@ extern "C" int run_timing_benchmark(const uint32_t m, const float alpha) {
         }
         
         auto start= std::chrono::high_resolution_clock::now();
-        mkl_simatcopy('R', 'T', m, m, alpha, A_mkl, stride, stride);
+        #if defined(__AVX2__)
+
+            mkl_simatcopy('R', 'T', m, m, alpha, A_mkl, stride, stride);
+
+        #elif defined(__ARM_NEON__) || defined(__ARM_NEON)
+
+            cblas_simatcopy(CblasRowMajor, CblasTrans, m, m, alpha, A_mkl, stride, A, stride);
+
+        #endif
         auto end= std::chrono::high_resolution_clock::now();
         
         mkl_timings_ns[i]= std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();

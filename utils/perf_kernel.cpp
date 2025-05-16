@@ -1,6 +1,7 @@
 #include <iostream>
 #include <iomanip>
 #include <cstdlib>
+#include <cstdint>
 #include <stdexcept>
 #include <vector>
 #include <string>
@@ -11,7 +12,19 @@
 #include <sys/ioctl.h>
 #include <linux/perf_event.h>
 
-#include </opt/intel/oneapi/mkl/2025.1/include/mkl.h>
+#if defined(__AVX2__)
+
+    #include </opt/intel/oneapi/mkl/2025.1/include/mkl.h>
+    mkl_set_num_threads(1);
+
+#elif defined(__ARM_NEON__) || defined(__ARM_NEON)
+
+    #include </opt/homebrew/opt/openblas/include/cblas.h>
+    openblas_set_num_threads(1);
+  
+#else
+  #error "Only AVX2 and NEON are supported"
+#endif
 
 constexpr long long TARGET_CYCLES= 10'000'000'000; //10 Billion
 constexpr uint32_t BASE_ITERS= 500;
@@ -298,7 +311,15 @@ extern "C" int run_performance_counters(const uint32_t m, const float alpha) {
     std::fill(results.begin(), results.end(), 0);
 
     for (int i= 0; i < 50; i++){
-        mkl_simatcopy('R', 'T', m, m, alpha, A, stride, stride);
+        #if defined(__AVX2__)
+
+            mkl_simatcopy('R', 'T', m, m, alpha, A, stride, stride);
+
+        #elif defined(__ARM_NEON__) || defined(__ARM_NEON)
+
+            cblas_simatcopy(CblasRowMajor, CblasTrans, m, m, alpha, A, stride, A, stride);
+
+        #endif
     }
 
     for (size_t i = 0; i < events.size(); i += max_counters) {
@@ -318,7 +339,15 @@ extern "C" int run_performance_counters(const uint32_t m, const float alpha) {
         perf.enable_all();
 
         for (uint32_t i= 0; i < iters; i++){
-            mkl_simatcopy('R', 'T', m, m, alpha, A, stride, stride);
+            #if defined(__AVX2__)
+
+                mkl_simatcopy('R', 'T', m, m, alpha, A, stride, stride);
+
+            #elif defined(__ARM_NEON__) || defined(__ARM_NEON)
+
+                cblas_simatcopy(CblasRowMajor, CblasTrans, m, m, alpha, A, stride, A, stride);
+
+            #endif
         }
 
         perf.disable_all();

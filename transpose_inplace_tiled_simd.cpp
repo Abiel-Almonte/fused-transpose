@@ -21,7 +21,9 @@
     constexpr uint32_t TILE_DIM= 4;
 
 #else
+
     #error "Only AVX2 and NEON are supported"
+    
 #endif
 
 constexpr uint32_t BLOCK_DIM= 32;
@@ -369,6 +371,6 @@ inline void simd_transpose_tile(const float* src, const uint32_t src_stride, flo
 
         vst1q_f32(dst + dst_stride, c1);
         vst1q_f32(dst + 3*dst_stride, c3);
-        
+
     #endif
 }
