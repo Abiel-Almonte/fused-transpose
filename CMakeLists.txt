@@ -5,7 +5,7 @@ project(hpit LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if (APPLE)
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_executable(hpit
         main.cpp
         ./utils/time_kernel.cpp
