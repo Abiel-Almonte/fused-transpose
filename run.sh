@@ -2,7 +2,7 @@
 
 set -e
 
-if [ -d "/opt/intel/oneapi/" && -z "$MKLROOT" ]; then
+if [[ -d "/opt/intel/oneapi/" && -z "$MKLROOT" ]]; then
   source /opt/intel/oneapi/setvars.sh > /dev/null
 fi 
 
