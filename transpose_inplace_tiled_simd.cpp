@@ -1,6 +1,7 @@
-#include <immintrin.h>
-#include <algorithm>
 #include <cstdint>
+
+#include <immintrin.h>
+#include <arm_neon.h>
 
 constexpr uint32_t BLOCK_DIM= 32;
 constexpr uint32_t TILE_DIM= 8;
@@ -41,10 +42,16 @@ extern "C" {
     uint32_t full_blocks= m/BLOCK_DIM;
     
     if (alpha != 1.0f){
-      swap<true>(alignedA, m, alpha, stride, full_blocks, row_buffer);
+      swap<true>(
+        alignedA, m, alpha, stride,
+        full_blocks, row_buffer
+      );
 
     } else{
-      swap<false>(alignedA, m, alpha, stride, full_blocks, row_buffer);
+      swap<false>(
+        alignedA, m, alpha, stride,
+        full_blocks, row_buffer
+      );
     }
   }
 }
@@ -52,12 +59,18 @@ extern "C" {
 template <bool scale>
 inline void swap(float* alignedA, uint32_t m, float alpha, uint32_t stride, uint32_t full_blocks, float row_buffer[TILE_DIM][TILE_DIM]){
   //Full Blocks
-  swap_full<scale>(alignedA, m, alpha, stride, full_blocks, row_buffer);
+  swap_full<scale>(
+    alignedA, m, alpha, stride,
+    full_blocks, row_buffer
+  );
 
   //Edge Blocks 
   uint32_t num_blocks= (m + BLOCK_DIM - 1)/BLOCK_DIM;
   if(num_blocks > full_blocks){
-    swap_edge<scale>(alignedA, m, alpha, stride, full_blocks, row_buffer);
+    swap_edge<scale>(
+      alignedA, m, alpha, stride,
+      full_blocks, row_buffer
+    );
   }
 }
 
