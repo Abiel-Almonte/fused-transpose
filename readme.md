@@ -12,7 +12,7 @@
 A cross platform inplace, square matrix, **transpose + scale** fused kernel that reliably **outperforms Intel MKL**'s `mkl_simatcopy` and OpenBLAS's `cblas_simatcopy` achieving up to a **5.8× speedup** for common matrix sizes.
 
 $$
-A :=  \alpha A^\top
+\mathbf{A} := \alpha \mathbf{A}^\top
 $$
 
 > Implemented in both **AVX2 (x86)** and **NEON (ARM64)** with static dispatch.
