@@ -67,8 +67,8 @@ The following image is an example of `simd_transpose_tile` implemented in AVX2:
 
 ![8x8-transpose](./images/8x8_transpose.png)
 
-- **AVX2 (x86)**: Transpoes 8×8 tiles using 256-bit `__m256` vectors, and `unpack`, `shuffle`, `permute` intrinsics.
-- **NEON (ARM64)**: Transpoes 4×4 tile using 128-bit `float32x4_t` vectors, and `vtrn`, `vcombine` intrinsics.
+- **AVX2 (x86)**: Transposes 8×8 tiles using 256-bit `__m256` vectors, and `unpack`, `shuffle`, `permute` intrinsics.
+- **NEON (ARM64)**: Transposes 4×4 tile using 128-bit `float32x4_t` vectors, and `vtrn`, `vcombine` intrinsics.
 
 # Validation
 The kernels were benchmarked reliably with:
