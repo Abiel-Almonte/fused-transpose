@@ -5,14 +5,19 @@
 
   * [Double Cache Blocking](#double-cache-blocking)
   * [Loop-Structured Progressive Specialization](#loop-structured-progressive-specialization)
-  * [Vectorized 8x8 Transpose](#vectorized-8x8-transpose)
+  * [Vectorized Tile Transpose](#vectorized-tile-transpose)
 * [Validation](#validation)
 
 # About
-An inplace square transpose kernel that reliably **outperforms Intel MKL**'s `mkl_simatcopy` achieving up to a **1.49× speedup**.
+A cross platform inplace, square matrix, **transpose + scale** fused kernel that reliably **outperforms Intel MKL**'s `mkl_simatcopy` and OpenBLAS's `cblas_simatcopy` achieving up to a **5.8× speedup** for common matrix sizes.
 
+$$
+A :=  \alpha A^\top
+$$
+
+> Implemented in both **AVX2 (x86)** and **NEON (ARM64)** with static dispatch.
 ```cpp
- void transpose_inplace_tiled_simd(float* A, const uint32_t m, const uint32_t stride)
+void transpose_inplace_tiled_simd(float* A, const uint32_t m, const float alpha, const uint32_t stride)
 ```
 
 ![bar-chart](./images/bandwidth_bar_chart.png)
@@ -20,19 +25,19 @@ An inplace square transpose kernel that reliably **outperforms Intel MKL**'s `mk
 The design maintains healthy microarchitectural behavior while improving throughput (*Elements per Cycle*).
 
 ![radar-chart](./images/perf_radar_chart.png)
-> Benchmarked on Intel i7 14700K @ 5.5 GHz  
-> Against Intel MKL 2025.1.0 Release  
+> Benchmarked  with `alpha = 2.0` on Intel i7 14700K @ 5.5 GHz   
+> Against Intel MKL `mkl_simatcopy` 2025.1.0 Release  
 
 # Methodology
 - Manual double cache blocking.  
 - Loop structured progressive specialization.  
-- Vectorized 8x8 transpose.
+- Vectorized tile transpose.
 
 ## Double Cache Blocking
 Matrix is partitioned into **Blocks**, and each **Block** is partitioned into **Tiles**.
 
 - **BlockDim (BD)**: manually tuned to 32 utilizing `perf`.  
-- **TileDim (TD)**: fixed at 8 to enable vectorized 8x8 transpose.
+- **TileDim (TD)**: fixed at 8 or 4 to enable vectorized tile transpose.
 
 ![cache-blocking](./images/blocking.png)
 
@@ -47,20 +52,23 @@ Colder paths reuse precomputed values and base addresses established by earlier,
 
 ![specialization](./images/specialization.png)
 
-## Vectorized 8x8 Transpose
-A subroutine that performs an in-register transpose of an 8×8 tile on all code paths with the `Full Block` and/or `Full Tile` properties. Contributing significantly to the observed performance improvement over `mkl_simatcopy`.
+## Vectorized Tile Transpose
+A subroutine that performs an in-register transpose of a tile on all code paths with the `Full Block` and/or `Full Tile` properties. Contributing significantly to the observed performance improvement.
 
 ```cpp
- void simd_transpose_8x8(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride)
+inline void simd_transpose_tile(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride, const float alpha)
 ```
 
-1) Loads 8 rows into `ymmX` registers from the source pointer `src`
-2) Rearrange rows into columns using a sequence of `unpack`, `shuffle`, and `permute` AVX2 intrinsics. 
+1) Loads 8 rows from the source pointer `src`
+2) Rearrange rows into columns using a sequence of SIMD intrinsics. 
 3) Stores columns contiguously at the destination pointer `dst`.
 
-> TileDim is fixed at 8 to align perfectly with AVX2 register width.
+The following image is an example of `simd_transpose_tile` implemented in AVX2:
 
 ![8x8-transpose](./images/8x8_transpose.png)
+
+- **AVX2 (x86)**: Transpoes 8×8 tiles using 256-bit `__m256` vectors, and `unpack`, `shuffle`, `permute` intrinsics.
+- **NEON (ARM64)**: Transpoes 4×4 tile using 128-bit `float32x4_t` vectors, and `vtrn`, `vcombine` intrinsics.
 
 # Validation
 The kernels were benchmarked reliably with:
