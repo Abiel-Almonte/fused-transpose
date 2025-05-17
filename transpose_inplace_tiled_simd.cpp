@@ -1,11 +1,16 @@
 #include <cstdint>
 
-#if defined(__AVX2__)
+#if defined(__SSE__) || defined(__AVX2__)
 
     #include <immintrin.h>
 
-    //256 bit registers
-    constexpr uint32_t TILE_DIM= 8;
+    #if defined(FORCE_AVX2)
+        //256 bit vectors
+        constexpr uint32_t TILE_DIM= 8;
+    #else
+        //128 bit vectors
+        constexpr uint32_t TILE_DIM= 4; 
+    #endif
 
     //simd consts
     constexpr uint32_t SHFL_LO_MASK= 0b01000100; //get even pair
@@ -16,13 +21,12 @@
 #elif defined(__ARM_NEON__) || defined(__ARM_NEON)
 
     #include <arm_neon.h>
-
-    //128 bit registers
+    //128 bit vectors
     constexpr uint32_t TILE_DIM= 4;
-
+    
 #else
 
-    #error "Only AVX2 and NEON are supported"
+    #error "Only SSE/AVX2 and NEON are supported"
     
 #endif
 
@@ -37,7 +41,8 @@ template <bool scale> inline void swap_edge(float* alignedA, uint32_t m, float a
 template <bool scale> inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], const uint32_t block_base_addr, const uint32_t block_base_addr_T, const uint32_t ti, const uint32_t tj, const float alpha, const uint32_t stride);
 template <bool scale> inline void swap_scalar(float* alignedA, const uint32_t tile_base_addr, const uint32_t tile_base_addr_T, const uint32_t i, const uint32_t j, const float alpha, const uint32_t stride);
 
-template <bool scale> inline void simd_transpose_tile(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride, const float alpha);
+template <bool scale> inline void simd_transpose_tile_128(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride, const float alpha);
+template <bool scale> inline void simd_transpose_tile_256(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride, const float alpha);
 
 extern "C" {
     void transpose_inplace_tiled_simd(float* A, const uint32_t m, const float alpha, const uint32_t stride) {
@@ -247,19 +252,98 @@ inline void swap_tile(float* alignedA, float buffer[TILE_DIM][TILE_DIM], const u
     float* tile_T= alignedA + block_base_addr_T + tj*TILE_DIM*stride + ti*TILE_DIM;
 
     for(uint8_t i= 0; i< TILE_DIM; i++){
-        #if defined(__AVX2__)
-            _mm256_storeu_ps(buffer[i], _mm256_loadu_ps(tile + i*stride));
+        #if defined(__SSE__) || defined(__AVX2__)
+            #if defined(FORCE_AVX2)
+                _mm256_storeu_ps(buffer[i], _mm256_loadu_ps(tile + i*stride));
+            #else
+                _mm_storeu_ps(buffer[i], _mm_loadu_ps(tile + i*stride));
+            #endif
         #elif defined(__ARM_NEON__) || defined(__ARM_NEON)
             vst1q_f32(buffer[i], vld1q_f32(tile + i*stride));
         #endif
     }
 
-    simd_transpose_tile<scale>(tile_T, stride, tile, stride, alpha);
-    simd_transpose_tile<scale>(&buffer[0][0], TILE_DIM, tile_T, stride, alpha);
+    #if defined(FORCE_AVX2)
+        simd_transpose_tile_256<scale>(tile_T, stride, tile, stride, alpha);
+        simd_transpose_tile_256<scale>(&buffer[0][0], TILE_DIM, tile_T, stride, alpha);
+    #else
+        simd_transpose_tile_128<scale>(tile_T, stride, tile, stride, alpha);
+        simd_transpose_tile_128<scale>(&buffer[0][0], TILE_DIM, tile_T, stride, alpha);
+    #endif
 }
 
 template<bool scale>
-inline void simd_transpose_tile(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride, const float alpha){
+inline void simd_transpose_tile_128(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride, const float alpha){
+    #if defined(__SSE__)
+
+        __m128 r0= _mm_loadu_ps(src);   
+        __m128 r1= _mm_loadu_ps(src + src_stride);
+        __m128 r2= _mm_loadu_ps(src + 2*src_stride);
+        __m128 r3= _mm_loadu_ps(src + 3*src_stride);
+
+        if constexpr (scale){
+            __m128 a= _mm_set1_ps(alpha);
+            r0= _mm_mul_ps(a, r0);
+            r1= _mm_mul_ps(a, r1);
+            r2= _mm_mul_ps(a, r2);
+            r3= _mm_mul_ps(a, r3);
+        }
+
+        __m128 half_0_1__0= _mm_unpacklo_ps(r0, r1);
+        __m128 half_2_3__0= _mm_unpackhi_ps(r0, r1);
+
+        __m128 half_0_1__1= _mm_unpacklo_ps(r2, r3);
+        __m128 half_2_3__1= _mm_unpackhi_ps(r2, r3);
+
+        __m128 c0= _mm_shuffle_ps(half_0_1__0, half_0_1__1, SHFL_LO_MASK);
+        __m128 c1= _mm_shuffle_ps(half_0_1__0, half_0_1__1, SHFL_HI_MASK);
+
+        __m128 c2= _mm_shuffle_ps(half_2_3__0, half_2_3__1, SHFL_LO_MASK);
+        __m128 c3= _mm_shuffle_ps(half_2_3__0, half_2_3__1, SHFL_HI_MASK);
+
+        _mm_storeu_ps(dst, c0);  
+        _mm_storeu_ps(dst + dst_stride, c1);
+        _mm_storeu_ps(dst + 2*dst_stride, c2);
+        _mm_storeu_ps(dst + 3*dst_stride, c3);
+
+    #elif  defined(__ARM_NEON__) || defined(__ARM_NEON)
+
+        float32x4_t r0= vld1q_f32(src);
+        float32x4_t r1= vld1q_f32(src + src_stride);
+        float32x4_t r2= vld1q_f32(src + 2*src_stride);
+        float32x4_t r3= vld1q_f32(src + 3*src_stride);
+
+        if constexpr(scale){
+            float32x4_t a= vdupq_n_f32(alpha);
+            r0= vmulq_f32(a, r0);
+            r1= vmulq_f32(a, r1);
+            r2= vmulq_f32(a, r2);
+            r3= vmulq_f32(a, r3);
+        }
+
+        float32x4_t half_0_2__0= vtrn1q_f32(r0, r1);
+        float32x4_t half_1_3__0= vtrn2q_f32(r0, r1);
+
+        float32x4_t half_0_2__1= vtrn1q_f32(r2, r3);
+        float32x4_t half_1_3__1= vtrn2q_f32(r2, r3);
+
+        float32x4_t c0= vcombine_f32(vget_low_f32(half_0_2__0), vget_low_f32(half_0_2__1));
+        float32x4_t c2= vcombine_f32(vget_high_f32(half_0_2__0), vget_high_f32(half_0_2__1));
+
+        float32x4_t c1= vcombine_f32(vget_low_f32(half_1_3__0), vget_low_f32(half_1_3__1));
+        float32x4_t c3= vcombine_f32(vget_high_f32(half_1_3__0), vget_high_f32(half_1_3__1));
+
+        vst1q_f32(dst, c0);
+        vst1q_f32(dst + 2*dst_stride, c2);
+
+        vst1q_f32(dst + dst_stride, c1);
+        vst1q_f32(dst + 3*dst_stride, c3);
+
+    #endif
+}
+
+template<bool scale>
+inline void simd_transpose_tile_256(const float* src, const uint32_t src_stride, float* dst, const uint32_t dst_stride, const float alpha){
     #if defined(__AVX2__)
 
         __m256 r0= _mm256_loadu_ps(src);
@@ -330,39 +414,6 @@ inline void simd_transpose_tile(const float* src, const uint32_t src_stride, flo
 
         _mm256_storeu_ps(dst + 3*dst_stride, c3);
         _mm256_storeu_ps(dst + 7*dst_stride, c7);
-
-    #elif  defined(__ARM_NEON__) || defined(__ARM_NEON)
-
-        float32x4_t r0= vld1q_f32(src);
-        float32x4_t r1= vld1q_f32(src + src_stride);
-        float32x4_t r2= vld1q_f32(src + 2*src_stride);
-        float32x4_t r3= vld1q_f32(src + 3*src_stride);
-
-        if constexpr(scale){
-            float32x4_t a= vdupq_n_f32(alpha);
-            r0= vmulq_f32(a, r0);
-            r1= vmulq_f32(a, r1);
-            r2= vmulq_f32(a, r2);
-            r3= vmulq_f32(a, r3);
-        }
-
-        float32x4_t half_0_2__0= vtrn1q_f32(r0, r1);
-        float32x4_t half_1_3__0= vtrn2q_f32(r0, r1);
-
-        float32x4_t half_0_2__1= vtrn1q_f32(r2, r3);
-        float32x4_t half_1_3__1= vtrn2q_f32(r2, r3);
-
-        float32x4_t c0= vcombine_f32(vget_low_f32(half_0_2__0), vget_low_f32(half_0_2__1));
-        float32x4_t c2= vcombine_f32(vget_high_f32(half_0_2__0), vget_high_f32(half_0_2__1));
-
-        float32x4_t c1= vcombine_f32(vget_low_f32(half_1_3__0), vget_low_f32(half_1_3__1));
-        float32x4_t c3= vcombine_f32(vget_high_f32(half_1_3__0), vget_high_f32(half_1_3__1));
-
-        vst1q_f32(dst, c0);
-        vst1q_f32(dst + 2*dst_stride, c2);
-
-        vst1q_f32(dst + dst_stride, c1);
-        vst1q_f32(dst + 3*dst_stride, c3);
 
     #endif
 }

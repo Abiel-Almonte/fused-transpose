@@ -8,7 +8,7 @@ fi
 
 mkdir -p "build"
 
-CC=clang-17 CXX=clang++-17 cmake -G "Unix Makefiles" -B ./build -S .
+CC=clang-17 CXX=clang++-17 cmake -G "Unix Makefiles" -DFORCE_AVX2=OFF -B ./build -S .
 cmake --build ./build -- -j$(nproc)
 
 MATRIX_SIZES=(15 16 31 32 63 64 127 128 255 256 511 512 1023 1024 2047 2048)

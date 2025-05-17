@@ -5,6 +5,11 @@ project(hpit LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(FORCE_AVX2 "Enable AVX2 256-bit vectors in kernel" OFF)
+if(FORCE_AVX2)
+  add_compile_definitions(FORCE_AVX2)
+endif()
+
 if (NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_executable(hpit
         main.cpp
@@ -19,6 +24,7 @@ else()
         transpose_inplace_tiled_simd.cpp
     )
 endif()
+
 
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|i[3-6]86")
     set(IS_X86 TRUE)
