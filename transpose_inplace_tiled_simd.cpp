@@ -123,19 +123,19 @@ inline void swap_full(float* alignedA, uint32_t m, float alpha, uint32_t stride,
             }
         }
 
-    //Diag Block
-    uint32_t block_base_addr= bi*BLOCK_DIM*stride + bi*BLOCK_DIM;
-    for (uint32_t ti= 0; ti < TILES_PER_BLOCK_DIM; ti++) {
-        for (uint32_t tj= ti; tj < TILES_PER_BLOCK_DIM; tj++) {
-            swap_tile<scale>(
-                alignedA,
-                row_buffer,
-                block_base_addr,
-                block_base_addr,
-                ti, tj, alpha, stride
-            );
+        //Diag Block
+        uint32_t block_base_addr= bi*BLOCK_DIM*stride + bi*BLOCK_DIM;
+        for (uint32_t ti= 0; ti < TILES_PER_BLOCK_DIM; ti++) {
+            for (uint32_t tj= ti; tj < TILES_PER_BLOCK_DIM; tj++) {
+                swap_tile<scale>(
+                    alignedA,
+                    row_buffer,
+                    block_base_addr,
+                    block_base_addr,
+                    ti, tj, alpha, stride
+                );
+            }
         }
-    }
     }
 }
 
