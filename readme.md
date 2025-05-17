@@ -15,7 +15,7 @@ $$
 \mathbf{A} := \alpha \mathbf{A}^\top
 $$
 
-> Implemented in both **AVX2 (x86)** and **NEON (ARM64)** with static dispatch.
+> Implemented in both **SSE/AVX2 (x86)** and **NEON (ARM64)** with static dispatch.
 ```cpp
 void transpose_inplace_tiled_simd(float* A, const uint32_t m, const float alpha, const uint32_t stride)
 ```
@@ -68,6 +68,7 @@ The following image is an example of `simd_transpose_tile` implemented in AVX2:
 ![8x8-transpose](./images/8x8_transpose.png)
 
 - **AVX2 (x86)**: Transposes 8×8 tiles using 256-bit `__m256` vectors, and `unpack`, `shuffle`, `permute` intrinsics.
+- **SSE (x86)**: Transposes 4×4 tiles using 128-bit `__m128` vectors, and `unpack`, `shuffle` intrinsics.
 - **NEON (ARM64)**: Transposes 4×4 tile using 128-bit `float32x4_t` vectors, and `vtrn`, `vcombine` intrinsics.
 
 # Validation
